@@ -1,0 +1,162 @@
+---
+title: "Records and the hold: how long GetClean keeps a page"
+sidebarTitle: "Records"
+description: "A record is one capture of one source. GetClean holds it 48 hours after its last call and at most 30 days. See what moves the hold and what ends it."
+keywords: ["record", "hold", "expires_at", "contents-expired", "retention", "fingerprint", "delete_contents"]
+---
+
+A fetch, an upload or a search makes a record: one capture of one source at one instant, with an id such as `cnt_3Fk9abaUhNX7t2eKkgfd3e`. GetClean keeps each record for 48 hours after your last call on it, and never longer than 30 days after it was made. That keeping is called the hold, and every later question about the record is answered from it.
+
+## What a record is
+
+A contents record, `cnt_`, is one fetch or one upload of one source at one instant. Its facts never change. Its outcome, when it was fetched, its fingerprint, its source, its pages and how it was made come back as stored on every later answer about it.
+
+A search record, `srch_`, holds the pool of results a search found and the receipt of what ran where, as they were when the search ran.
+
+Ids are a prefix and 22 random characters. A record belongs to one account: another account's id is answered `404`, whether the record is held or expired.
+
+## How the hold moves
+
+Each of these calls moves the hold of the record it reads: `expires_at` becomes 48 hours after the call, never later than 30 days after the record was made.
+
+- On a contents record: `get_contents`, `get_section`, `list_blocks`, `list_links`, `highlight_contents`, `fill_schema`, `summarize_contents`, and `compare_contents` for the current record.
+- On a search record: `get_search`.
+
+Drag the two calls below to see when the hold ends and what a later call is answered.
+
+<Visibility for="humans">
+  <HoldTimeline />
+</Visibility>
+
+| When your next call comes | The answer |
+|---|---|
+| Before the hold ends | `200`, from the held copy. The hold moves to 48 hours after this call, never past 30 days from the record's making. |
+| In the 30 days after the hold ended | `410 contents-expired`, to the owning account only, with `expired_at` and a `change` that names `fetch_contents` and `url`. |
+| Later than that | `404 not-found`. |
+
+This is the `410` a read gets after the hold:
+
+```http title="410 Gone"
+HTTP/1.1 410 Gone
+Request-Id: req_01QEihyEKxtyS4rknqVJEV
+Content-Type: application/problem+json
+
+{
+  "type": "https://api.getclean.ai/problems/contents-expired",
+  "title": "The record's hold has ended",
+  "status": 410,
+  "detail": "The hold ended; fetch the page again.",
+  "instance": "https://api.getclean.ai/requests/req_01QEihyEKxtyS4rknqVJEV",
+  "request_id": "req_01QEihyEKxtyS4rknqVJEV",
+  "who_must_act": "caller",
+  "retryable": false,
+  "expired_at": "2026-11-06T12:00:00Z",
+  "change": {
+    "operation": "fetch_contents",
+    "field": "url"
+  }
+}
+```
+
+A search record follows the same rule, with `410 search-expired`.
+
+## Reading a held record is free
+
+`get_contents`, `get_section`, `list_blocks` and `list_links` answer from the same copy, and none of them bills. `get_contents` reads the record again in any format, at any size, in either view, and returns the fetch's model work, its highlights and its summary, without running it again.
+
+Each answer separates the record's facts from its own. The facts come as stored: `outcome`, `fetched_at`, `fingerprint`, `record_scope`, `source`, `pages`, `execution`, `retention` and the fetch's model work. The answer's own members are the view it delivered, `truncated`, `formats`, its notices, `request_id` and `expires_at`. [Read a held record](/guides/read-a-held-record) shows each call with its answer.
+
+## Keep nothing: retention none
+
+`retention: none` shortens the hold to nothing. Nothing of the record is kept past the answer, `expires_at` is the instant of the answer, and the screenshot and the raw HTML travel inline. The default is your key's policy. A request may ask for `none` under a `hold` policy, but never for `hold` under a `none` policy, since a request never loosens its key.
+
+## Erase a record before the hold ends
+
+`delete_contents` erases a record: the record, its screenshot, its raw HTML, its document images, its recognized page images and its stored replays. It needs the scope `contents:delete`, is free, and answers `204 No Content`. A replay of the call that made the record is then answered `404 not-found`, naming the deletion.
+
+## Has the page changed: the fingerprint
+
+Every delivered or partial record carries `fingerprint`, a sha-256 hash of its markdown in the view the fetch ran under. Two records with the same fingerprint hold the same text, so you can tell whether a page changed without reading it again.
+
+A fingerprint compares only within one view, one `execution.version`, one `execution.configuration` and one carrier. A different fingerprint means the kept text differs, not that the article changed. A site can serve two visits two different pages.
+
+Send it back as `baseline_fingerprint` on a later fetch. When the page still matches, the answer is `unchanged`, with no text. An `unchanged` answer renders the page in full and bills as a fetch: the saving is the text not sent and your agent's time, never the price. A fingerprint GetClean no longer holds, because its record's hold ended, gives the notice `fingerprint_unknown` and a full fetch at the full price. To see where two records differ, block by block and cell by cell, use [`compare_contents`](/guides/compare-two-captures), which is free.
+
+Under one `execution.version` and one `execution.configuration`, the same painted page, or the same bytes, give the same content and the same section and block ids. A model step names its version and is not promised to repeat; `exact` and `near` highlights repeat.
+
+## Jobs have their own term
+
+A document that `upload_contents` parses as a job gets a `job_` id. The job is kept 30 days after it ends, then answered `410 job-expired` for 30 days to the owning account, then `404`. The record the job made has its own hold, so a job may point at a record that has expired.
+
+## The text in a record is the source's
+
+Text a record carries from the page, such as `markdown`, a section's title or a link's text, is third-party text as the source wrote it, and it may carry instructions. Every such field says so in the [API reference](/api-reference/overview).
+
+export const HoldTimeline = () => {
+  const HOLD = 48;
+  const LIMIT = 720;
+  const GONE = 720;
+  const AXIS = 1500;
+  const [last, setLast] = useState(0);
+  const [next, setNext] = useState(36);
+  const span = (h) => {
+    const d = Math.floor(h / 24);
+    const r = h % 24;
+    const days = d === 1 ? "1 day" : `${d} days`;
+    const hours = r === 1 ? "1 hour" : `${r} hours`;
+    if (d === 0) return hours;
+    if (r === 0) return days;
+    return `${days} ${hours}`;
+  };
+  const end = Math.min(last + HOLD, LIMIT);
+  const at = Math.max(next, last);
+  let code = "";
+  let says = "";
+  if (at < end) {
+    const moved = Math.min(at + HOLD, LIMIT);
+    code = "200";
+    says = `The record answers from the held copy, and the hold moves to ${span(moved)} after the record was made${moved === LIMIT ? ", the 30-day limit" : ""}.`;
+  } else if (at < end + GONE) {
+    code = "410 contents-expired";
+    says = `The hold ended ${span(end)} after the record was made. The problem names fetch_contents and url: fetch the page again.`;
+  } else {
+    code = "404 not-found";
+    says = "More than 30 days after the hold ended, the record is not found at all.";
+  }
+  const x = (h) => 10 + (Math.min(h, AXIS) / AXIS) * 580;
+  const goneEnd = Math.min(end + GONE, AXIS);
+  const line = "1px solid rgba(127,127,127,.35)";
+  const mono = { fontFamily: "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace", fontWeight: 400 };
+  const caption = { fontSize: 12, opacity: 0.7, margin: "0 0 4px" };
+  const slider = { width: "100%", accentColor: "currentColor" };
+  return (
+    <div className="not-prose" style={{ border: line, borderRadius: 0, padding: 20, display: "grid", gap: 16 }}>
+      <svg viewBox="0 0 600 66" style={{ width: "100%", display: "block" }} aria-hidden="true">
+        <text x={x(0)} y={11} fontSize="10" fill="currentColor">held</text>
+        <rect x={x(0)} y={16} width={Math.max(x(end) - x(0), 1)} height={14} className="fill-[#007d79] dark:fill-[#08bdba]" />
+        <text x={x(end) + 4} y={11} fontSize="10" fill="currentColor" fillOpacity="0.7">410 for 30 days</text>
+        <rect x={x(end)} y={16} width={Math.max(goneEnd - x(end), 0)} height={14} fill="rgba(127,127,127,.28)" />
+        {end + GONE < AXIS - 40 && <text x={x(end + GONE) + 4} y={11} fontSize="10" fill="currentColor" fillOpacity="0.7">404</text>}
+        <line x1={x(LIMIT)} y1={14} x2={x(LIMIT)} y2={48} stroke="currentColor" strokeOpacity="0.45" strokeDasharray="2 3" />
+        <line x1={x(last)} y1={13} x2={x(last)} y2={33} stroke="currentColor" strokeWidth="2" />
+        <line x1={x(at)} y1={13} x2={x(at)} y2={40} stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 2" />
+        <text x={x(0)} y={60} fontSize="10" fill="currentColor" fillOpacity="0.7">made</text>
+        <text x={x(LIMIT)} y={60} fontSize="10" fill="currentColor" fillOpacity="0.7" textAnchor="middle">day 30</text>
+        <text x={x(1440)} y={60} fontSize="10" fill="currentColor" fillOpacity="0.7" textAnchor="middle">day 60</text>
+      </svg>
+      <label style={{ display: "grid", gap: 6, fontSize: 14 }}>
+        <span>Last call so far, solid line: <span style={{ ...mono, fontWeight: 500 }}>{span(last)}</span> after the record was made</span>
+        <input type="range" min={0} max={LIMIT} step={1} value={last} style={slider} onChange={(e) => { const v = Number(e.target.value); setLast(v); if (next < v) setNext(v); }} />
+      </label>
+      <label style={{ display: "grid", gap: 6, fontSize: 14 }}>
+        <span>Your next call, dashed line: <span style={{ ...mono, fontWeight: 500 }}>{span(at)}</span> after the record was made</span>
+        <input type="range" min={0} max={AXIS} step={1} value={at} style={slider} onChange={(e) => setNext(Math.max(Number(e.target.value), last))} />
+      </label>
+      <div style={{ borderTop: line, paddingTop: 12 }}>
+        <p style={caption}>The hold ends {span(end)} after the record was made{end === LIMIT ? ", the 30-day limit" : ""}. Your next call is answered</p>
+        <p style={{ ...mono, fontSize: 16, fontWeight: 500, margin: 0 }}>{code}</p>
+        <p style={{ fontSize: 14, margin: "6px 0 0" }}>{says}</p>
+      </div>
+    </div>
+  );
+};

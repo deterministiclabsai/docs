@@ -1,0 +1,380 @@
+---
+title: "How an answer reads: outcome, notices, cost"
+sidebarTitle: "Reading an answer"
+description: "Every GetClean answer opens with its outcome, then notices, the content, the source's facts and the cost. Learn the five outcomes and problems."
+keywords: ["outcome", "notices", "cost", "request id", "problem", "RFC 9457", "idempotency", "retries"]
+---
+
+GetClean sends every answer in a fixed order, so you read what happened before anything else. A page that could not be read still comes back as a record, and its outcome says why. An HTTP error status is kept for the API's own refusals, which are called problems.
+
+## The order of a record
+
+A record of the contents family always comes in this order:
+
+1. What happened: `outcome`.
+2. What to know first: `notices`.
+3. When GetClean looked: `fetched_at`.
+4. The content in the shapes you asked for, or the map of its sections when the text does not fit.
+5. The facts of the source: `source`.
+6. A fingerprint of the text.
+7. The price: `cost`.
+
+A search record keeps the same rule. Its outcome comes first, then its notices and coverage gaps, then the leads in rank order.
+
+## The outcome comes first
+
+`outcome.kind` is one of five values:
+
+| Kind | What it means |
+|---|---|
+| `delivered` | Everything asked for came, or the map came. |
+| `partial` | The work stopped in the middle, and its results were kept. |
+| `failed` | The source's answer was not a page. |
+| `refused` | GetClean did not try, by a rule. |
+| `needs_person` | A person must act. |
+
+`outcome.reason` says why, from a published set of reasons for each family. `outcome.message` gives the particulars in one sentence when the reason has any, such as the limit that stopped the work or the next step that may work. This fetch met a bot challenge:
+
+```json
+{
+  "outcome": {
+    "kind": "failed",
+    "reason": "challenge_served",
+    "message": "A bot challenge stood where the page should be; later may work on sites that do not challenge every new visitor, or a person opens the URL and uploads the saved page with captured_url."
+  }
+}
+```
+
+A record's outcome is a fact of the fetch. No later call rewrites it.
+
+## A page that fails is a record, not an error
+
+`fetch_contents` answers `201 Created` for every outcome kind. A record that failed, was refused or needs a person carries `cost.actual` of zero, so a page that would not load bills nothing. Compare the two records below: the same call, two pages, two outcomes.
+
+<CodeGroup>
+
+```json Delivered expandable
+{
+  "id": "cnt_3Fk9abaUhNX7t2eKkgfd3e",
+  "outcome": {
+    "kind": "delivered",
+    "reason": "whole"
+  },
+  "notices": [],
+  "fetched_at": "2026-11-04T08:40:12Z",
+  "fingerprint": "sha-256=:Qm9HMC25CiwhR/SGuoq8PkLBexHyDIsb7J7tqUETc2z=:",
+  "scope": "main",
+  "record_scope": "main",
+  "formats": [
+    "markdown"
+  ],
+  "truncated": false,
+  "markdown": "# Quarterly results\n\n<mark id=\"h1\">Revenue rose 12%</mark> to … <mark id=\"h2\">Margin expanded on lower input costs and mix.</mark> …",
+  "counts": {
+    "characters": 6210,
+    "blocks": {
+      "heading": 4,
+      "text": 22,
+      "table": 1
+    },
+    "links": {
+      "page": 9
+    }
+  },
+  "highlights": [
+    {
+      "id": "h1",
+      "query_index": 0,
+      "text": "Revenue rose 12%",
+      "basis": "exact",
+      "section_id": "s1",
+      "block_id": "b3"
+    },
+    {
+      "id": "h2",
+      "query_index": 1,
+      "text": "Margin expanded on lower input costs and mix.",
+      "basis": "judged",
+      "section_id": "s2",
+      "block_id": "b9"
+    }
+  ],
+  "summary": "Revenue rose 12% in the quarter, driven by volume in Europe; margin expanded on lower input costs and mix; guidance was raised.",
+  "hidden_text": [],
+  "left_out": [
+    {
+      "kind": "navigation",
+      "characters": 1480
+    }
+  ],
+  "source": {
+    "url": "https://example.com/q3",
+    "final_url": "https://example.com/q3",
+    "redirects": [],
+    "status_code": 200,
+    "media_type": "text/html",
+    "carrier": "web",
+    "access_kind": "open",
+    "title": "Quarterly results",
+    "authors": [],
+    "published_date": "2026-10-28",
+    "published_date_precision": "day",
+    "published_date_basis": "structured_data",
+    "modified_date": null,
+    "publisher": "Example Corp",
+    "canonical_url": null,
+    "language": "en",
+    "language_versions": [],
+    "profile": {
+      "kind": "company",
+      "role": "primary",
+      "independence": "unknown",
+      "review": {
+        "kind": "none",
+        "by": null
+      }
+    },
+    "robots": "allowed",
+    "declared_terms": [],
+    "structured_data": [
+      {
+        "@type": "NewsArticle",
+        "headline": "Quarterly results"
+      }
+    ],
+    "origins": [
+      {
+        "origin": "https://cdn.example.com",
+        "kind": "script"
+      }
+    ],
+    "visitor": {
+      "country": "DE",
+      "language": "de-DE,de;q=0.9",
+      "network": "datacenter"
+    }
+  },
+  "execution": {
+    "version": "1.0.0",
+    "configuration": "cfg-2026-11",
+    "models": [
+      {
+        "step": "highlights",
+        "version": "hl-2026-10"
+      },
+      {
+        "step": "summary",
+        "version": "sum-2026-10"
+      }
+    ],
+    "elapsed_seconds": 7.1
+  },
+  "cost": {
+    "ceiling": {
+      "amount": "0.0500",
+      "currency": "USD"
+    },
+    "actual": {
+      "amount": "0.0090",
+      "currency": "USD"
+    },
+    "units": {
+      "contents": 1,
+      "model_steps": 2
+    },
+    "replayed": false
+  },
+  "retention": "hold",
+  "run_id": "run_default",
+  "expires_at": "2026-11-06T08:40:12Z",
+  "request_id": "req_01JzsALAAlsNsdoVz1EElr"
+}
+```
+
+```json Failed expandable
+{
+  "id": "cnt_7Qp2cdxxK32qkfIDrqRUE2",
+  "outcome": {
+    "kind": "failed",
+    "reason": "challenge_served",
+    "message": "A bot challenge stood where the page should be; later may work on sites that do not challenge every new visitor, or a person opens the URL and uploads the saved page with captured_url."
+  },
+  "notices": [],
+  "fetched_at": "2026-11-04T08:41:03Z",
+  "truncated": false,
+  "source": {
+    "url": "https://shop.example/offer",
+    "final_url": "https://shop.example/offer",
+    "redirects": [],
+    "status_code": 403,
+    "media_type": "text/html",
+    "carrier": "web",
+    "access_kind": "open",
+    "title": "Just a moment",
+    "authors": [],
+    "published_date": null,
+    "modified_date": null,
+    "publisher": null,
+    "canonical_url": null,
+    "language": "en",
+    "language_versions": [],
+    "profile": {
+      "kind": "marketplace",
+      "role": "primary",
+      "independence": "unknown",
+      "review": {
+        "kind": "none",
+        "by": null
+      }
+    },
+    "robots": "allowed",
+    "declared_terms": [],
+    "structured_data": [],
+    "origins": [
+      {
+        "origin": "https://challenges.example",
+        "kind": "script"
+      }
+    ],
+    "visitor": {
+      "country": "DE",
+      "language": "de-DE,de;q=0.9",
+      "network": "datacenter"
+    }
+  },
+  "execution": {
+    "version": "1.0.0",
+    "configuration": "cfg-2026-11",
+    "models": [],
+    "elapsed_seconds": 2.4
+  },
+  "cost": {
+    "ceiling": {
+      "amount": "0.0500",
+      "currency": "USD"
+    },
+    "actual": {
+      "amount": "0.0000",
+      "currency": "USD"
+    },
+    "units": {},
+    "replayed": false
+  },
+  "retention": "hold",
+  "run_id": "run_default",
+  "expires_at": "2026-11-06T08:41:03Z",
+  "request_id": "req_01KXuaBXEPybVuXmnCI9Bl"
+}
+```
+
+</CodeGroup>
+
+The failed record carries no content, no fingerprint and no counts: those members are present only while their condition holds, and are never sent as `[]` or `null` in place of an absent value. It still carries the facts of what GetClean met, such as the site's status code, `403`, and the challenge script's origin. On the MCP server, a failed, refused or needs-person record comes back as an `isError` result that carries the record.
+
+## Notices: what to know before the result
+
+A notice is a fact to read before the result, never an error. Each has a `code` and a one-sentence `message`. It names the request's `field` and a JSON `pointer` into your request when there is one.
+
+```json
+{
+  "notices": [
+    {
+      "code": "highlight_not_found",
+      "message": "No block bears on the string.",
+      "field": "highlights",
+      "pointer": "/highlights/1"
+    }
+  ]
+}
+```
+
+Here the second string of a `highlight_contents` call, at `/highlights/1`, was found nowhere. The call itself succeeded. A record keeps the notices of the work that made it: they come back first on every later answer about the record, each marked `"held": true`, and the answer's own notices follow them.
+
+## What it cost
+
+Every call that can bill carries `cost`:
+
+| Member | What it holds |
+|---|---|
+| `ceiling` | The most this call could cost: the lowest of your `max_cost`, the key's cap on one call, the run's budget, the key's budget and the balance. |
+| `actual` | What was billed. |
+| `units` | A count per unit: `contents`, `model_steps`, `screenshots`, `document_pages`, `recognized_pages`, `searches`, `datasource_queries`. `{}` when nothing was billed. |
+| `replayed` | `true` when this answer is the first answer again under the same idempotency key, with no second charge. |
+
+```json
+{
+  "cost": {
+    "ceiling": { "amount": "0.0500", "currency": "USD" },
+    "actual": { "amount": "0.0090", "currency": "USD" },
+    "units": { "contents": 1, "model_steps": 2 },
+    "replayed": false
+  }
+}
+```
+
+A record read again with `get_contents` carries no `cost`, because that call is free. Amounts are decimal strings with at most four digits after the point, in the account's currency.
+
+<Note>The amounts in these answers are example figures, not GetClean's prices.</Note>
+
+## The request id
+
+Every answer carries the id of this call twice: in the `Request-Id` header and as `request_id` in the body, `req_` followed by 22 characters. A replay carries the id of the replaying call, never the first call's.
+
+## When the API refuses a call: problems
+
+A problem is the API's own refusal: an answer that is not a result, sent as `application/problem+json` under RFC 9457. A page's or a source's failure is never a problem; it is the outcome of a record. This fetch asked for a format that does not exist:
+
+```http title="422 Unprocessable Content"
+HTTP/1.1 422 Unprocessable Content
+Request-Id: req_01JSUEOJ23EQgBxGjfSpcD
+Content-Type: application/problem+json
+
+{
+  "type": "https://api.getclean.ai/problems/invalid-field",
+  "title": "A field is invalid",
+  "status": 422,
+  "detail": "formats holds a value outside its set.",
+  "instance": "https://api.getclean.ai/requests/req_01JSUEOJ23EQgBxGjfSpcD",
+  "request_id": "req_01JSUEOJ23EQgBxGjfSpcD",
+  "who_must_act": "caller",
+  "retryable": false,
+  "violations": [
+    {
+      "kind": "not_allowed",
+      "place": "body",
+      "pointer": "/formats/0",
+      "field": "formats",
+      "message": "The value at the pointer is not a value of formats.",
+      "allowed_values": [
+        "markdown",
+        "html",
+        "doclang",
+        "json",
+        "links",
+        "screenshot",
+        "raw_html"
+      ]
+    }
+  ]
+}
+```
+
+| Member | What it tells you |
+|---|---|
+| `type` | The problem's name as a URL, `https://api.getclean.ai/problems/<name>`. Compare on it. |
+| `title` | The published title of the type. |
+| `status` | The HTTP status. |
+| `detail` | One sentence that names the thing. |
+| `instance`, `request_id` | This occurrence and this call. |
+| `who_must_act` | Whose move it is: `caller`, `account_owner`, `third_party` or `service`. |
+| `retryable` | `true` on six types only: `idempotency-key-in-flight`, `rate-limit-exceeded`, `concurrency-limit-exceeded`, `overloaded`, `gateway-error`, `gateway-timeout`. |
+| `violations` | Every violation at once, each with its kind, its place, its pointer and the allowed values or bounds. |
+| `change` | The fix as data, when the fix is data. |
+
+Every problem type, with its status, who acts and what to do, is on [Problems](/api-reference/problems).
+
+## Retry without paying twice
+
+Send an `Idempotency-Key` header, one key per logical call, and reuse it on every retry. The same key with the same body returns the first answer again, with `replayed: true` on its `cost` and no second charge. The same key while the first call still runs is answered `409 idempotency-key-in-flight`. The same key with another body is answered `422 idempotency-key-reused`. GetClean keeps a key for 24 hours, for billed answers and running jobs only.
+
+The key is optional on the other calls that may bill, `fetch_contents`, `search`, `highlight_contents`, `fill_schema` and `summarize_contents`, and required on `upload_contents`, `fetch_contents_batch` and `search_batch`, where a duplicate costs most. The SDKs send one per logical call when you give none. They also retry six problem types on their own, `idempotency-key-in-flight`, both `429` types, `overloaded`, `gateway-error` and `gateway-timeout`: after `Retry-After` when it is sent, at most five attempts, with the same key, so no retry bills twice.

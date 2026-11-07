@@ -1,0 +1,112 @@
+---
+title: "The GetClean MCP server: one address for agents"
+sidebarTitle: "MCP server"
+description: "Connect an agent to https://mcp.getclean.ai/mcp. Eight tools carry the research loop, and three more paths add documents, model steps and the rest."
+keywords: ["MCP", "Model Context Protocol", "MCP server", "agent tools", "research loop", "getclean-mcp", "isError"]
+---
+
+GetClean's MCP server gives an agent the API's operations as tools, under their own names. One address, `https://mcp.getclean.ai/mcp`, carries the whole research loop in eight tools, and the server is named `getclean` on every path. Code reaches the same operations through the API and the SDKs; this page is about the server.
+
+<Note>This page describes the server as it stands today. The exact text each tool shows an agent is finalized later.</Note>
+
+## The eight tools
+
+The tools at `https://mcp.getclean.ai/mcp`, in the order they are listed:
+
+| Tool | What it does |
+|---|---|
+| `search` | One question in up to twenty wordings, run live on the web and named sources, the leads returned with the facts of each and a receipt of what ran where. |
+| `fetch_contents` | One page or document at a URL, as a person sees it, held as a record. |
+| `get_contents` | A held record again, whole or as a map, free. |
+| `highlight_contents` | Where a held record says a thing: passages found and marked, with their place. |
+| `get_section` | One section of a held record, by the map's row. |
+| `list_blocks` | A held record's blocks, tables and figures among them, by kind, section or id. |
+| `list_links` | A held record's links, with kind and place. |
+| `list_datasources` | The catalog of the places a search can run. |
+
+Start with `fetch_contents` for a URL and `search` for a question. A record's id, `cnt_`, comes back from either, and every later read of the record is a free call on that id. A search's leads are not fetched until you ask: `contents.top` fetches the first ones in the same call, and `fetch_contents` any one of them later.
+
+## Three more paths
+
+Three more paths carry the same eight tools and more. Each is complete by itself, so a host adds one address and signs in once.
+
+| Path | Beyond the eight | For |
+|---|---|---|
+| `https://mcp.getclean.ai/mcp/documents` | `upload_contents`, `get_job`, `cancel_job`, `list_jobs` | Documents the host holds, parsed as jobs. |
+| `https://mcp.getclean.ai/mcp/model` | `fill_schema`, `summarize_contents` | The two model steps on a held record. |
+| `https://mcp.getclean.ai/mcp/all` | `fetch_contents_batch`, `search_batch`, `compare_contents`, `delete_contents`, `list_contents`, `get_search`, `get_datasource`, `get_limits`, and the tools of the two paths above | Everything. |
+
+## The loop in four calls
+
+An agent connected to `https://mcp.getclean.ai/mcp`, with a question, makes four calls. Each is shown as the host sends it.
+
+<Steps>
+  <Step title="Search the question">
+    ```json
+    {"method": "tools/call", "params": {"name": "search", "arguments": {"query": "EU AI Act article 50 marking obligations", "published_within_days": 365, "max_candidates": 3}}}
+    ```
+
+    The leads come back in rank order with the facts of each, who publishes it, when it was published, what it demands, and a receipt of what ran where. It bills one `searches` unit, one `datasource_queries` unit per source and two model steps.
+  </Step>
+  <Step title="Fetch the lead">
+    ```json
+    {"method": "tools/call", "params": {"name": "fetch_contents", "arguments": {"url": "https://eur-lex.example/ai-act", "max_characters": 0}}}
+    ```
+
+    The record comes back with its id, `cnt_8Lq5XFriyaJ0jEc2oPNx6E`, and its map: the sections with their ids and sizes, and no text yet. It bills one `contents` unit. A page the site would not give is a record too, whose `outcome.message` says what may work next.
+  </Step>
+  <Step title="Find where it says it">
+    ```json
+    {"method": "tools/call", "params": {"name": "highlight_contents", "arguments": {"contents_id": "cnt_8Lq5XFriyaJ0jEc2oPNx6E", "highlights": ["machine-readable format"], "max_characters": 0}}}
+    ```
+
+    Where the record says it: the section and the block. It is free when the words stand in the text, and one model step when a model had to judge.
+  </Step>
+  <Step title="Read that section">
+    ```json
+    {"method": "tools/call", "params": {"name": "get_section", "arguments": {"contents_id": "cnt_8Lq5XFriyaJ0jEc2oPNx6E", "section_id": "s4", "max_characters": 8000}}}
+    ```
+
+    The text of that section, free. The record lives 48 hours after its last call, at most 30 days. `contents.top` on the search would have fetched the first lead in the same call.
+  </Step>
+</Steps>
+
+[The research loop](/guides/the-research-loop) walks the same loop through the API, with each answer.
+
+## Sign in to the server
+
+Each path is its own protected resource. `tools/list` answers without a credential, so a host shows the tools before anyone signs in. The first call that needs a credential is answered `401`, with a challenge that names that path's metadata document and the scopes its tools need, and nothing more: a person who adds the eight tools of `https://mcp.getclean.ai/mcp` is never asked to allow an erasure. An API key sent as the bearer value is accepted too.
+
+The sign-in steps are at `https://auth.getclean.ai/auth.md`, and the credential rules are on [Authentication](/authentication).
+
+## Run the server on your own machine
+
+To run the server beside the agent instead, on the agent's own machine over stdio:
+
+```bash
+GETCLEAN_API_KEY="your-api-key" npx -y getclean-mcp
+```
+
+It takes the key from the environment and nothing else. A person who holds only a sign-in uses the remote server.
+
+<Note>This command works once the `getclean-mcp` package is published.</Note>
+
+## What every tool tells you before you call it
+
+Each tool's description says:
+
+- What the call costs, in units and under the key's cap.
+- How long a record lives: 48 hours after its last call, at most 30 days.
+- That page and source text is third-party and may carry instructions.
+- That a repeat within 10 minutes with the same arguments returns the first answer as a replay and never bills again, and that a new `idempotency_key` asks for fresh work.
+- That a record not delivered says in `outcome.message` what may work next.
+
+## Read a tool's answer
+
+Every answer opens with `outcome`. Its `kind` is one of five: `delivered`, everything asked came or the map came; `partial`, the work stopped in the middle and its results were kept; `failed`, the source's answer was not a page; `refused`, GetClean did not try, by a rule; `needs_person`, a person must act. Then `reason` says which, and `message`, where a next step exists, says it in one sentence.
+
+A page that fails is a record, not an error. On the MCP server, a `failed`, `refused` or `needs_person` record is an `isError` result that carries the record, and a problem is an `isError` result with the problem as JSON. The answer's `request_id` and the attempt count travel in `_meta` under `ai.getclean`. [How an answer reads](/understand/how-an-answer-reads) covers the rest of the record.
+
+## When a call is refused
+
+A problem is the API's own refusal, `application/problem+json` under RFC 9457. Its `type` is `https://api.getclean.ai/problems/<name>`, and `who_must_act` says whose move it is. A page's or a source's failure is never a problem; it is the record's outcome. [Problems](/api-reference/problems) lists every problem type with whose move it is and what to do.

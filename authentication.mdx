@@ -1,0 +1,279 @@
+---
+title: "Authenticate with an API key or an access token"
+sidebarTitle: "Authentication"
+description: "Send Authorization: Bearer with an API key or an access token on every call. See the nine scopes, what a 401 and a 403 say, and how to sign in."
+keywords: ["authentication", "API key", "access token", "Bearer", "scopes", "401", "403", "insufficient-scope"]
+---
+
+Every call to `https://api.getclean.ai` carries one header, `Authorization: Bearer`, and its value is either an API key or an access token. GetClean treats the two alike. Before any rule runs, it resolves the credential to the account and its settings: the scopes, the cap on one call, the budgets, the policy and the default run.
+
+## The header
+
+```http
+Authorization: Bearer <key>
+```
+
+The value is one of two things:
+
+- An API key, made at `https://app.getclean.ai`. It belongs to an account and carries the scopes its owner gave it.
+- An access token, issued by `https://auth.getclean.ai/realms/getclean` to a person and the program acting for them. Its scopes are what the person approved on the consent page, never more.
+
+A credential sent in the query string is ignored.
+
+## Make an authenticated call
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.getclean.ai/v1/contents \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/q3"}'
+```
+
+```python Python
+from getclean import GetClean
+
+# Reads the key from GETCLEAN_API_KEY.
+client = GetClean()
+
+# Or pass a key.
+client = GetClean(api_key="your-api-key")
+
+# Or pass a function that returns the current access token.
+def read_access_token() -> str:
+    ...
+
+client = GetClean(api_key=read_access_token)
+```
+
+```typescript TypeScript
+import { GetClean } from "getclean";
+
+// Reads the key from GETCLEAN_API_KEY.
+const client = new GetClean({});
+
+// Or pass a key.
+const withKey = new GetClean({ apiKey: "your-api-key" });
+
+// Or pass a function that returns the current access token.
+const withToken = new GetClean({ apiKey: () => readAccessToken() });
+```
+
+```java Java
+// To be confirmed against the generated Java SDK, ai.getclean:getclean.
+```
+
+```go Go
+// To be confirmed against the generated Go SDK, github.com/deterministic-labs/getclean-go.
+```
+
+```csharp title="C#"
+// To be confirmed against the generated C# SDK, GetClean on NuGet.
+```
+
+</CodeGroup>
+
+The SDKs read the key from `GETCLEAN_API_KEY` when you pass none. A function that returns a token is taken in place of the key: the SDK calls it before every request and refreshes nothing itself.
+
+<Note>The Java, Go and C# forms on this page are to be confirmed against the generated SDKs.</Note>
+
+## Scopes
+
+Every key carries an explicit list of scopes, and anything not on the list is denied. Each operation names the scope it needs. One scope depends on the request: `contents:model`, which a call needs when a model may work on what it asks. GetClean decides it from the request before any work, so a missing scope is answered `403` before any `422`.
+
+| Scope | What it allows |
+|---|---|
+| `contents:fetch` | `fetch_contents`, `upload_contents`, `fetch_contents_batch` |
+| `contents:read` | `get_contents`, `get_section`, `list_blocks`, `list_links`, `compare_contents`, `list_contents`; `highlight_contents` under `deterministic_only` |
+| `contents:model` | `fill_schema`, `summarize_contents`; `highlight_contents` unless `deterministic_only`; a fetch that sends `json_schema`, `summary` or `highlights` without `deterministic_only` |
+| `contents:delete` | `delete_contents` |
+| `jobs:read` | `get_job`, `list_jobs` |
+| `jobs:cancel` | `cancel_job` |
+| `limits:read` | `get_limits` |
+| `search:run` | `search`, `search_batch`, the fetches made inside a search included |
+| `search:read` | `get_search`, `list_datasources`, `get_datasource` |
+
+`highlight_contents` always needs `contents:read`, and needs `contents:model` as well unless the request sends `deterministic_only`, since a string not found word for word may be judged by a model.
+
+### Find the scopes one call needs
+
+Pick an operation, then what the request sends.
+
+<Visibility for="humans">
+  <ScopeFinder />
+</Visibility>
+
+## When the credential is missing or rejected
+
+A call with no usable credential is answered `401`. The challenge names the document that leads to the sign-in.
+
+```http title="401 Unauthorized"
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Bearer realm="getclean", resource_metadata="https://api.getclean.ai/.well-known/oauth-protected-resource"
+Request-Id: req_01Ar9JusXFIyNhFJ0zEcBe
+Content-Type: application/problem+json
+
+{
+  "type": "https://api.getclean.ai/problems/unauthorized",
+  "title": "The key is missing or rejected",
+  "status": 401,
+  "detail": "No credential was sent: send Authorization: Bearer with an API key from https://app.getclean.ai, or sign in as https://auth.getclean.ai/auth.md describes.",
+  "instance": "https://api.getclean.ai/requests/req_01Ar9JusXFIyNhFJ0zEcBe",
+  "request_id": "req_01Ar9JusXFIyNhFJ0zEcBe",
+  "who_must_act": "caller",
+  "retryable": false
+}
+```
+
+A credential that was sent and rejected gets the same challenge with `error="invalid_token"` added, and its `detail` reads: "The credential is unknown, expired or revoked: refresh the token, sign in again, or use another key." A credential sent only in the query string gets: "A credential in the query string is ignored: send it in the Authorization header as Bearer." The credential itself is never echoed.
+
+## When a scope is missing
+
+A credential short of a scope is answered `403`, and the challenge lists every scope the call needs:
+
+```http title="403 Forbidden"
+HTTP/1.1 403 Forbidden
+WWW-Authenticate: Bearer realm="getclean", error="insufficient_scope", resource_metadata="https://api.getclean.ai/.well-known/oauth-protected-resource", scope="contents:model"
+```
+
+The body is a problem of type `insufficient-scope`, and its `scopes_required` lists the same scopes. Who acts depends on the credential. For an API key, the account owner adds the scope at `https://app.getclean.ai`. For an access token, the person may be asked again.
+
+## Sign in as a person, or as a program acting for one
+
+A program that arrives with no credential can find its own way to a sign-in:
+
+<Steps>
+  <Step title="Call the API">
+    With no credential, the answer is `401`, and `WWW-Authenticate` names `https://api.getclean.ai/.well-known/oauth-protected-resource`.
+  </Step>
+  <Step title="Read the document the challenge names">
+    It is served to anyone, and it names the API, the one issuer, the nine scopes, and that the credential travels in the header.
+  </Step>
+  <Step title="Sign in at the issuer">
+    The issuer offers a device sign-in. Its steps, for a person and for a program acting for one, are at `https://auth.getclean.ai/auth.md`.
+  </Step>
+  <Step title="Call again with the access token">
+    Send it as the bearer value, exactly as an API key is sent.
+  </Step>
+</Steps>
+
+The command line signs in with `getclean login` and signs out with `getclean logout`.
+
+## Transport
+
+GetClean takes HTTPS only, over TLS 1.2 or 1.3. A plain HTTP request is answered `400 invalid-request` over that same connection, with the HTTPS URL in `detail`. It is never redirected, so a key and a body are never sent again in the clear. The API sends no CORS headers: its credentials are secrets held by servers and programs, so a key placed in a web page fails at once.
+
+export const ScopeFinder = () => {
+  const families = [
+    { name: "Contents", ops: ["fetch_contents", "upload_contents", "fetch_contents_batch", "get_contents", "get_section", "list_blocks", "list_links", "highlight_contents", "fill_schema", "summarize_contents", "compare_contents", "get_job", "cancel_job", "list_jobs", "delete_contents", "list_contents"] },
+    { name: "Shared", ops: ["get_limits"] },
+    { name: "Search", ops: ["search", "get_search", "search_batch", "list_datasources", "get_datasource"] },
+  ];
+  const rules = {
+    fetch_contents: ["contents:fetch", "fields"],
+    upload_contents: ["contents:fetch", "fields"],
+    fetch_contents_batch: ["contents:fetch", "fields"],
+    get_contents: ["contents:read", ""],
+    get_section: ["contents:read", ""],
+    list_blocks: ["contents:read", ""],
+    list_links: ["contents:read", ""],
+    highlight_contents: ["contents:read", "judged"],
+    fill_schema: ["contents:model", "model"],
+    summarize_contents: ["contents:model", "model"],
+    compare_contents: ["contents:read", ""],
+    get_job: ["jobs:read", ""],
+    cancel_job: ["jobs:cancel", ""],
+    list_jobs: ["jobs:read", ""],
+    delete_contents: ["contents:delete", ""],
+    list_contents: ["contents:read", ""],
+    get_limits: ["limits:read", ""],
+    search: ["search:run", "search"],
+    get_search: ["search:read", ""],
+    search_batch: ["search:run", "search"],
+    list_datasources: ["search:read", ""],
+    get_datasource: ["search:read", ""],
+  };
+  const [op, setOp] = useState("fetch_contents");
+  const [highlights, setHighlights] = useState(true);
+  const [summary, setSummary] = useState(false);
+  const [jsonSchema, setJsonSchema] = useState(false);
+  const [deterministic, setDeterministic] = useState(false);
+  const base = rules[op][0];
+  const kind = rules[op][1];
+  const asksModel = highlights || summary || jsonSchema;
+  const scopes = [base];
+  if (kind === "fields" && asksModel && !deterministic) scopes.push("contents:model");
+  if (kind === "judged" && !deterministic) scopes.push("contents:model");
+  let why = "";
+  if (kind === "fields") {
+    if (deterministic && (summary || jsonSchema)) why = "Refused before any work: 422 model-work-refused. Under deterministic_only, summary and json_schema are refused by name.";
+    else if (deterministic && highlights) why = "Under deterministic_only, highlights are matched word for word only, so no model scope is needed.";
+    else if (asksModel) why = "A model may work on these fields, so the call needs contents:model as well.";
+    else why = "A plain fetch needs contents:fetch alone.";
+  } else if (kind === "judged") {
+    why = deterministic ? "Under deterministic_only, strings are matched word for word only." : "A string not found word for word may be judged by a model, so the call needs contents:model as well.";
+  } else if (kind === "model") {
+    why = "Every call of this operation is a model step.";
+  } else if (kind === "search") {
+    why = "search:run covers everything a search does, the fetches inside it and their model fields included.";
+  }
+  const line = "1px solid rgba(127,127,127,.35)";
+  const mono = { fontFamily: "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace", fontWeight: 400 };
+  const caption = { fontSize: 12, opacity: 0.7, margin: "0 0 6px" };
+  const toggle = (label, value, set) => (
+    <label key={label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
+      <input type="checkbox" checked={value} onChange={(e) => set(e.target.checked)} />
+      <span style={mono}>{label}</span>
+    </label>
+  );
+  return (
+    <div className="not-prose" style={{ border: line, borderRadius: 0, padding: 20, display: "grid", gap: 18 }}>
+      {families.map((family) => (
+        <div key={family.name}>
+          <p style={caption}>{family.name}</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {family.ops.map((name) => (
+              <button
+                key={name}
+                type="button"
+                aria-pressed={name === op}
+                onClick={() => setOp(name)}
+                style={{ ...mono, fontSize: 12, padding: "5px 8px", borderRadius: 0, cursor: "pointer", color: "inherit", background: "transparent", border: name === op ? "1px solid currentColor" : line, fontWeight: name === op ? 500 : 400 }}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      {kind === "fields" && (
+        <div style={{ borderTop: line, paddingTop: 14 }}>
+          <p style={caption}>The request sends</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+            {toggle("highlights", highlights, setHighlights)}
+            {toggle("summary: true", summary, setSummary)}
+            {toggle("json_schema", jsonSchema, setJsonSchema)}
+            {toggle("deterministic_only: true", deterministic, setDeterministic)}
+          </div>
+        </div>
+      )}
+      {kind === "judged" && (
+        <div style={{ borderTop: line, paddingTop: 14 }}>
+          <p style={caption}>The request sends</p>
+          {toggle("deterministic_only: true", deterministic, setDeterministic)}
+        </div>
+      )}
+      <div style={{ borderTop: line, paddingTop: 14 }}>
+        <p style={caption}>{op} needs</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {scopes.map((scope) => (
+            <code key={scope} style={{ ...mono, fontSize: 14, padding: "4px 8px", border: "1px solid currentColor", borderRadius: 0 }}>{scope}</code>
+          ))}
+        </div>
+        {why && <p style={{ margin: "10px 0 0", fontSize: 14 }}>{why}</p>}
+        <p style={{ margin: "6px 0 0", fontSize: 14, opacity: 0.7 }}>A key short of one of them is answered 403 insufficient-scope, and scopes_required lists every scope the call needs.</p>
+      </div>
+    </div>
+  );
+};

@@ -1,0 +1,656 @@
+---
+title: "Search the web and named sources for leads"
+sidebarTitle: "Search"
+description: "Run one question across the web and named sources with search. Get leads with their facts, a receipt of what ran where, and the first pages fetched."
+keywords: ["search", "leads", "datasources", "coverage gaps", "receipt", "rerank", "contents.top", "get_search"]
+---
+
+`search` runs one question, in up to twenty wordings, live on up to ten datasources, and returns the leads with the facts of each before any page is read. Every page it found is accounted for: returned as a lead, or counted as dropped with its reason. Your agent decides what to read; GetClean reports the facts.
+
+## Run a search
+
+This search asks for three leads published in the last 365 days, and fetches the first lead in the same call.
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.getclean.ai/v1/search \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "EU AI Act article 50 marking obligations", "published_within_days": 365, "max_candidates": 3, "contents": {"top": 1, "max_characters": 8000}, "max_cost": {"amount": "0.1000", "currency": "USD"}}'
+```
+
+```python Python
+from getclean import GetClean, Money, SearchContentsOptions
+
+client = GetClean()
+
+result = client.search(
+    query="EU AI Act article 50 marking obligations",
+    published_within_days=365,
+    max_candidates=3,
+    contents=SearchContentsOptions(top=1, max_characters=8000),
+    max_cost=Money(amount="0.1000", currency="USD"),
+)
+
+print(result.outcome.kind)                        # delivered
+print(result.coverage_gaps)                       # []
+print(result.candidates[0].source_profile.kind)   # state
+print(result.cost.actual.amount)                  # 0.0200
+```
+
+```typescript TypeScript
+import { GetClean } from "getclean";
+
+const client = new GetClean({ apiKey: process.env.GETCLEAN_API_KEY });
+
+const result = await client.search({
+  query: "EU AI Act article 50 marking obligations",
+  published_within_days: 365,
+  max_candidates: 3,
+  contents: { top: 1, max_characters: 8000 },
+  max_cost: { amount: "0.1000", currency: "USD" },
+});
+
+console.log(result.outcome.kind);                      // delivered
+console.log(result.candidates[0].source_profile.kind); // state
+console.log(result.cost.actual.amount);                // 0.0200
+```
+
+```java Java
+// To be confirmed against the generated Java SDK, ai.getclean:getclean.
+```
+
+```go Go
+// To be confirmed against the generated Go SDK, github.com/deterministic-labs/getclean-go.
+```
+
+```csharp title="C#"
+// To be confirmed against the generated C# SDK, GetClean on NuGet.
+```
+
+</CodeGroup>
+
+GetClean answers `201 Created`, and `Location` names the search record.
+
+```json title="201 Created" expandable
+{
+  "id": "srch_4HmUunqCCXquleKVCosqFG",
+  "retention": "hold",
+  "outcome": {
+    "kind": "delivered",
+    "reason": "candidates"
+  },
+  "notices": [],
+  "coverage_gaps": [],
+  "candidates": [
+    {
+      "id": "cand_a1dYqVUaEDEMqh7Qgn8yip",
+      "url": "https://eur-lex.example/ai-act",
+      "final_url": "https://eur-lex.example/ai-act",
+      "title": "Regulation (EU) 2024/1689",
+      "language": "en",
+      "media_type": "text/html",
+      "source_profile": {
+        "kind": "state",
+        "role": "primary",
+        "independence": "unknown",
+        "review": {
+          "kind": "none",
+          "by": null
+        }
+      },
+      "copy_count": 2,
+      "language_versions": [],
+      "carrier": "web",
+      "published_date": "2024-07-12",
+      "published_date_basis": "structured_data",
+      "published_date_precision": "day",
+      "access": {
+        "kind": "open",
+        "declared_terms": [],
+        "robots": "allowed"
+      },
+      "identifier_matches": [],
+      "relevance_score": 0.93,
+      "excerpts": [
+        {
+          "text": "Providers of AI systems … shall ensure …",
+          "wording_index": 0,
+          "origin": "snippet",
+          "truncated": false,
+          "section_id": "s4",
+          "block_id": "b31"
+        }
+      ],
+      "matches": [
+        {
+          "wording_index": 0,
+          "datasource_id": "web",
+          "rank": 1
+        }
+      ],
+      "fetch_cost": {
+        "amount": "0.0050",
+        "currency": "USD"
+      },
+      "contents": {
+        "id": "cnt_8Lq5XFriyaJ0jEc2oPNx6E",
+        "outcome": {
+          "kind": "delivered",
+          "reason": "sections_only"
+        },
+        "notices": [],
+        "fetched_at": "2026-11-05T09:00:03Z",
+        "fingerprint": "sha-256=:Zt4DIioPPcwNH3magrYziAsXB0Fj8m1dwQBKY5IRuzs=:",
+        "scope": "main",
+        "record_scope": "main",
+        "formats": [],
+        "truncated": true,
+        "counts": {
+          "characters": 9500,
+          "blocks": {
+            "heading": 3,
+            "text": 18
+          },
+          "links": {
+            "page": 12
+          }
+        },
+        "sections": [
+          {
+            "id": "s0",
+            "title": null,
+            "level": 0,
+            "characters": 400,
+            "basis": "structure"
+          },
+          {
+            "id": "s4",
+            "title": "Article 50",
+            "level": 2,
+            "characters": 9100,
+            "basis": "structure"
+          }
+        ],
+        "source": {
+          "url": "https://eur-lex.example/ai-act",
+          "final_url": "https://eur-lex.example/ai-act",
+          "title": "Regulation (EU) 2024/1689",
+          "published_date": "2024-07-12"
+        },
+        "execution": {
+          "version": "1.0.0",
+          "configuration": "cfg-2026-11",
+          "models": [],
+          "elapsed_seconds": 6.2
+        },
+        "cost": {
+          "ceiling": {
+            "amount": "0.0100",
+            "currency": "USD"
+          },
+          "actual": {
+            "amount": "0.0050",
+            "currency": "USD"
+          },
+          "units": {
+            "contents": 1
+          },
+          "replayed": false
+        },
+        "retention": "hold",
+        "run_id": "run_default",
+        "expires_at": "2026-11-07T09:00:03Z"
+      }
+    },
+    {
+      "id": "cand_a27BTvL7IEwl2lokVFjz6n",
+      "url": "https://commentary.example/ai-act-50",
+      "title": "Article 50 AI Act: transparency obligations, a commentary",
+      "language": "en",
+      "media_type": "text/html",
+      "source_profile": {
+        "kind": "scholarly_publisher",
+        "role": "secondary",
+        "independence": "unknown",
+        "review": {
+          "kind": "editorial",
+          "by": null
+        }
+      },
+      "copy_count": 0,
+      "language_versions": [],
+      "carrier": "web",
+      "published_date": "2025-02-03",
+      "published_date_basis": "meta_tag",
+      "published_date_precision": "day",
+      "access": {
+        "kind": "open",
+        "declared_terms": [],
+        "robots": "allowed"
+      },
+      "identifier_matches": [],
+      "relevance_score": 0.81,
+      "excerpts": [
+        {
+          "text": "Article 50 requires providers to mark synthetic output in a machine-readable form …",
+          "wording_index": 0,
+          "origin": "snippet",
+          "truncated": false
+        }
+      ],
+      "matches": [
+        {
+          "wording_index": 0,
+          "datasource_id": "web",
+          "rank": 2
+        }
+      ],
+      "fetch_cost": {
+        "amount": "0.0050",
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "cand_a3fKWtZ0PhMBOSM78lATqf",
+      "url": "https://law-firm.example/briefing",
+      "title": "Client briefing: marking obligations under the AI Act",
+      "language": "en",
+      "media_type": "text/html",
+      "source_profile": {
+        "kind": "professional_practice",
+        "role": "secondary",
+        "independence": "unknown",
+        "review": {
+          "kind": "none",
+          "by": null
+        }
+      },
+      "copy_count": 3,
+      "language_versions": [],
+      "carrier": "web",
+      "published_date": "2025-09-15",
+      "published_date_basis": "byline",
+      "published_date_precision": "day",
+      "access": {
+        "kind": "open",
+        "declared_terms": [],
+        "robots": "allowed"
+      },
+      "identifier_matches": [],
+      "relevance_score": 0.64,
+      "excerpts": [
+        {
+          "text": "From 2 August 2026, deployers and providers must …",
+          "wording_index": 0,
+          "origin": "snippet",
+          "truncated": false
+        }
+      ],
+      "matches": [
+        {
+          "wording_index": 0,
+          "datasource_id": "web",
+          "rank": 5
+        }
+      ],
+      "fetch_cost": {
+        "amount": "0.0050",
+        "currency": "USD"
+      }
+    }
+  ],
+  "counts": {
+    "returned": 3,
+    "found": 41,
+    "dropped": {
+      "not_relevant": 30,
+      "undated": 0,
+      "max_per_domain": 0,
+      "blocked_domain": 0,
+      "outside_allowed": 0,
+      "source_kind": 0,
+      "source_independence": 0,
+      "folded_copy": 8,
+      "phrase_check": 0,
+      "exclusion_check": 0,
+      "beyond_max_candidates": 0
+    }
+  },
+  "end_reason": "relevance",
+  "interpretation": {
+    "canonical_query": "EU AI Act article 50 marking obligations",
+    "phrases": [],
+    "exclusions": [],
+    "operators": [],
+    "wordings": [
+      {
+        "index": 0,
+        "text": "EU AI Act article 50 marking obligations",
+        "language": "en",
+        "language_basis": "detected",
+        "origin": "caller",
+        "result_counts": {
+          "web": 41
+        }
+      }
+    ],
+    "languages_searched": [
+      "en"
+    ]
+  },
+  "applied_request": {
+    "query": "EU AI Act article 50 marking obligations",
+    "datasources": [
+      "web"
+    ],
+    "published_within_days": 365,
+    "undated": "shown",
+    "safe_search": "moderate",
+    "max_per_datasource": 10,
+    "ranking_order": "relevance",
+    "max_candidates": 3,
+    "max_excerpt_characters": 600,
+    "max_total_characters": 40000,
+    "contents": {
+      "top": 1,
+      "max_characters": 8000,
+      "scope": "main",
+      "summary": false
+    },
+    "view": "full",
+    "wait_seconds": 10,
+    "max_cost": {
+      "amount": "0.1000",
+      "currency": "USD"
+    },
+    "deterministic_only": false,
+    "pinned_version": "1.0.0",
+    "run_id": "run_default",
+    "retention": "hold"
+  },
+  "datasources_searched": [
+    {
+      "id": "web",
+      "display_name": "Web",
+      "group": "web",
+      "reason": "default",
+      "outcome": {
+        "kind": "delivered",
+        "reason": "candidates"
+      },
+      "effective_country": "DE",
+      "effective_language": "en",
+      "wordings": [
+        0
+      ],
+      "returned_count": 41,
+      "result_count": 41,
+      "result_count_kind": "exact",
+      "lead_count": 3,
+      "filters_applied": {
+        "allowed_domains": {
+          "state": "not_applicable"
+        },
+        "blocked_domains": {
+          "state": "not_applicable"
+        },
+        "published_from": {
+          "state": "not_applicable"
+        },
+        "published_until": {
+          "state": "not_applicable"
+        },
+        "published_within_days": {
+          "state": "native"
+        },
+        "undated": {
+          "state": "emulated",
+          "how": "pages without a detectable date kept, as asked"
+        },
+        "languages": {
+          "state": "not_applicable"
+        },
+        "media_types": {
+          "state": "not_applicable"
+        },
+        "safe_search": {
+          "state": "native"
+        },
+        "source_kinds": {
+          "state": "not_applicable"
+        },
+        "source_independence": {
+          "state": "not_applicable"
+        },
+        "as_of_date": {
+          "state": "not_applicable"
+        }
+      },
+      "operators_applied": {
+        "phrase": {
+          "state": "not_applicable"
+        },
+        "exclusion": {
+          "state": "not_applicable"
+        },
+        "alternatives": {
+          "state": "not_applicable"
+        },
+        "site": {
+          "state": "not_applicable"
+        },
+        "filetype": {
+          "state": "not_applicable"
+        },
+        "intitle": {
+          "state": "not_applicable"
+        },
+        "inurl": {
+          "state": "not_applicable"
+        },
+        "before": {
+          "state": "not_applicable"
+        },
+        "after": {
+          "state": "not_applicable"
+        },
+        "wildcard": {
+          "state": "not_applicable"
+        }
+      },
+      "access_used": "open",
+      "cost": {
+        "ceiling": {
+          "amount": "0.0100",
+          "currency": "USD"
+        },
+        "actual": {
+          "amount": "0.0010",
+          "currency": "USD"
+        },
+        "units": {
+          "datasource_queries": 1
+        },
+        "replayed": false
+      }
+    }
+  ],
+  "ranking": {
+    "reranked": true,
+    "reranker_version": "rr-2026-10",
+    "min_score": 0.42,
+    "instructions_applied": false,
+    "priorities": [],
+    "order": "relevance",
+    "preferred_domains": [],
+    "merge": "stratified_rank_fusion",
+    "strata": [
+      {
+        "datasource_id": "web",
+        "language": "en",
+        "lead_count": 3
+      }
+    ]
+  },
+  "execution": {
+    "version": "1.0.0",
+    "configuration": "cfg-2026-11",
+    "models": [
+      {
+        "step": "reranking",
+        "version": "rr-2026-10"
+      },
+      {
+        "step": "discovery",
+        "version": "disc-2026-10"
+      }
+    ],
+    "elapsed_seconds": 8.4
+  },
+  "cost": {
+    "ceiling": {
+      "amount": "0.1000",
+      "currency": "USD"
+    },
+    "actual": {
+      "amount": "0.0200",
+      "currency": "USD"
+    },
+    "units": {
+      "searches": 1,
+      "datasource_queries": 1,
+      "model_steps": 2,
+      "contents": 1
+    },
+    "replayed": false
+  },
+  "searched_at": "2026-11-05T09:00:00Z",
+  "run_id": "run_default",
+  "expires_at": "2026-11-07T09:00:03Z",
+  "request_id": "req_02ARUKU1YFino5zjD2hYpX"
+}
+```
+
+<Note>The import of `Money` and `SearchContentsOptions` from the package root, and every Java, Go and C# form, are to be confirmed against the generated SDKs. The amounts in these answers are example figures, not GetClean's prices.</Note>
+
+## Read the answer in order
+
+| Member | In this answer | What it tells you |
+|---|---|---|
+| `outcome` | `delivered`, reason `candidates` | Every source tried answered and everything asked ran. |
+| `notices`, `coverage_gaps` | both empty | Nothing to read first, and nothing you asked for went unsearched. |
+| `candidates` | three leads | The leads in rank order, each with its facts. The first came fetched. |
+| `counts` | 41 found, 3 returned | Every page found, and why each one not returned was dropped. |
+| `end_reason` | `relevance` | The next candidate fell under the reranker's cut-off. |
+| `interpretation`, `applied_request` | one wording, every default written out | How the question was read, and the request as it ran. |
+| `datasources_searched` | the web | The receipt: per source, the wordings that ran, the results, and how each filter was applied. |
+| `cost` | 1 `searches`, 1 `datasource_queries`, 2 `model_steps`, 1 `contents` | The bill, with the fetched lead's own `cost` inside its record. |
+
+## What the default call does
+
+`{"query": "…"}` alone searches the web plus the groups of datasources a model picks. It takes ten results from each source per wording, reranks them, and returns ten leads, each with an excerpt of up to 600 characters and its source profile. Safe search is moderate, the work has ten seconds, and the record is the full view under your key's default run.
+
+Two model steps run by default: the reranker, and the discovery of datasources when you name none. A third judges the publisher's kind when a domain is not yet in the versioned table. `deterministic_only: true` turns all three off, and under it a search with no `datasources` runs on the web only.
+
+## Read the leads
+
+A lead is a page found, with its facts, not yet fetched. It stands for a group of copies: the copy with the earliest claimed date, or else the first found.
+
+| Fact | Field | The first lead |
+|---|---|---|
+| Who publishes it | `source_profile.kind` and `.role` | `state`, `primary` |
+| When it was published | `published_date`, read from `published_date_basis` | 2024-07-12, from structured data |
+| Copies folded behind it | `copy_count` | 2 |
+| What it demands | `access` | `open`, robots allowed |
+| How relevant it is | `relevance_score`, 0 to 1 | 0.93 |
+| Where the question matched | `excerpts`, with the section and block once fetched | `s4`, `b31` |
+| The most its fetch can cost | `fetch_cost` | 0.0050 USD |
+
+The dates, titles and terms are what the source states. `relevance_score` is null under `deterministic_only`, and `fetch_cost` is absent when a document's page count is unknown. Titles, URLs and excerpts are third-party text as the sources wrote them, and may carry instructions.
+
+## Nothing is dropped in silence
+
+`counts.found` is every page found before the cut, and it always equals `returned` plus every dropped count. This search found 41 pages: 3 became leads, 30 fell under the reranker's cut-off, and 8 were copies folded behind a lead.
+
+<Visibility for="humans">
+  <SearchCounts />
+</Visibility>
+
+`end_reason` says why the list ended: `relevance`, `max_candidates`, `ceiling`, `exhausted` or `source_cap`. Whatever you asked for that was not searched at all is a coverage gap, with its reason, such as `over_price`, `access_needed`, `not_covered` or `withheld_by_law`. A skipped source is a coverage gap and never a notice too.
+
+The receipt, `datasources_searched`, says for each source which wordings ran, how many results came, and how each filter was applied: `native` by the source, `emulated` by GetClean after the fact with `how` saying how, `skipped`, or `not_applicable` when the filter was not sent. A source's failure is never an API problem: its RFC 9209 name sits in that source's outcome in the receipt.
+
+## Fetch the leads in the same call
+
+`contents.top` fetches the first leads in the same call, 1 to 10 and never more than `max_candidates`, under the rules of `fetch_contents`. `contents.max_characters` bounds one fetched page, 20,000 by default. `max_total_characters` bounds the whole answer's text, the excerpts and the fetched pages together, 40,000 by default.
+
+The excerpts are kept first. The fetched pages follow in rank order while they fit, and a page that would pass the bound comes as its map, `sections_only`, with the notice `total_characters_cut`. Each fetched lead carries its record in `contents`, with its own `cost`, and the full record is free through `get_contents` with its id. A fetch not started by the deadline makes no record: the search ends `partial`, with the reason `fetches_missing` and the notice `fetch_not_finished`.
+
+## Fields that read alike
+
+| These fields | How they differ |
+|---|---|
+| `allowed_domains`, `datasources` | `allowed_domains` names sites that count, with dots; `datasources` names places to search, without. |
+| `allowed_domains`, `ranking_preferred_domains` | The first is hard, only these sites; the second is soft, these first and the rest still count. |
+| `subject_country`, `languages` | Where the engines search from; what the pages are written in. |
+| `published_from`, `as_of_date` | The page's own date; the sources' state on a past day. |
+| `source_kinds`, `ranking_priorities` | A filter that removes; a preference that reorders. |
+| `max_per_datasource`, `ranking_max_per_domain` | Taken from each source before merging; kept from each site in the answer. |
+| `max_candidates`, `contents.top` | How many leads; how many of them to fetch. |
+| `max_excerpt_characters`, `max_total_characters`, `contents.max_characters` | One lead's excerpt; the whole answer; one fetched page. |
+
+`published_within_days` counts back from today, 1 to 3,650, and cannot be sent with `published_from` or `published_until`. A wording runs only on the sources that cover its language, and nothing is translated: to reach sources in another language, add a wording in that language with `alternate_queries`.
+
+## What a search costs
+
+A search bills 1 `searches`, 1 `datasource_queries` per source per wording that ran, 1 `model_steps` for the reranker and 1 for the discovery when they ran, and each fetched lead as `fetch_contents` prices it. A reranker cut by the deadline is not billed.
+
+`max_cost` is the ceiling: the lowest of your `max_cost`, the key's cap on one call, the run's budget, the key's budget and the balance. When it cannot cover everything, GetClean cuts in this order, each cut named by the notice `cost_cut`: each fetched lead's own extras, then whole fetches, then the reranker, then discovery, then depth. A `max_cost` below a plain search, one `searches` and one `datasource_queries`, is refused with `422 cost-exceeds-cap`.
+
+## Time, and no callbacks
+
+A search answers within `wait_seconds`, 10 by default, from 0.2 to 60. What did not finish is named in a `partial` outcome. There is no `202`, no stream and no webhook.
+
+The outcome is `delivered` when every source tried answered and everything asked ran, and `partial` when something tried did not finish. The other kinds come only when no source answered.
+
+## Read the pool again, free
+
+The search record holds the pool of everything found behind the leads, for 48 hours after its last call and at most 30 days. `get_search` pages that pool, free: it never searches again and never charges. Each item past the leads carries its `dropped_reason`.
+
+export const SearchCounts = () => {
+  const rows = [
+    { key: "found", n: 41, says: "Pages found before the cut. Always the leads returned plus every dropped count." },
+    { key: "returned", n: 3, says: "Leads returned, in rank order, each with its facts." },
+    { key: "not_relevant", n: 30, says: "Dropped: under the reranker's cut-off." },
+    { key: "folded_copy", n: 8, says: "Dropped: the same text as a lead, folded behind it as a copy." },
+    { key: "nine other reasons", n: 0, says: "Dropped as undated, max_per_domain, blocked_domain, outside_allowed, source_kind, source_independence, phrase_check, exclusion_check or beyond_max_candidates: none in this search." },
+  ];
+  const [active, setActive] = useState(0);
+  const line = "1px solid rgba(127,127,127,.35)";
+  const mono = { fontFamily: "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace", fontWeight: 400 };
+  return (
+    <div className="not-prose" style={{ border: line, borderRadius: 0, padding: 20, display: "grid", gap: 6 }}>
+      {rows.map((r, i) => (
+        <button
+          key={r.key}
+          type="button"
+          aria-pressed={i === active}
+          onClick={() => setActive(i)}
+          onMouseEnter={() => setActive(i)}
+          onFocus={() => setActive(i)}
+          style={{ display: "grid", gridTemplateColumns: "minmax(0, 11rem) 2.5rem minmax(0, 1fr)", alignItems: "center", gap: 12, padding: "6px 8px", border: i === active ? "1px solid currentColor" : "1px solid transparent", borderRadius: 0, background: "transparent", color: "inherit", font: "inherit", textAlign: "left", cursor: "pointer" }}
+        >
+          <span style={{ ...mono, fontSize: 13, overflowWrap: "anywhere" }}>{r.key}</span>
+          <span style={{ ...mono, fontSize: 13, textAlign: "right" }}>{r.n}</span>
+          <span style={{ display: "block", height: 12, width: `${(r.n / 41) * 100}%`, minWidth: r.n > 0 ? 2 : 0, background: "currentColor", opacity: i === 0 ? 0.85 : i === 1 ? 0.6 : 0.3 }} />
+        </button>
+      ))}
+      <p style={{ margin: "10px 0 0", fontSize: 14, minHeight: 40 }}>{rows[active].says}</p>
+      <p className="text-[#005d5d] dark:text-[#3ddbd9]" style={{ margin: 0, fontSize: 14, fontWeight: 500, borderTop: line, paddingTop: 10 }}>
+        41 found = 3 returned + 30 + 8 dropped. Every page found is accounted for.
+      </p>
+    </div>
+  );
+};

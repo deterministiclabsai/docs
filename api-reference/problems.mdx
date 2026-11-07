@@ -1,0 +1,363 @@
+---
+title: "Problems: every type, who acts and what to do"
+sidebarTitle: "Problems"
+description: "Every problem type the GetClean API can answer with: its status, who must act, its title and the fix, keyed by the type URI that clients compare on."
+keywords: ["problem types", "errors", "RFC 9457", "application/problem+json", "who_must_act", "retryable", "violations"]
+---
+
+A problem is a GetClean answer that is not a result: `application/problem+json` as RFC 9457 defines it, one shape for every status, its `type` one of the 38 types below or `about:blank`. A site's or a source's failure is never a problem. It is that item's `outcome`, such as a fetched record whose `outcome` says why the page could not be read.
+
+## A problem, as it arrives
+
+This fetch sent a `formats` value outside its set.
+
+```http
+HTTP/1.1 422 Unprocessable Content
+Request-Id: req_01JSUEOJ23EQgBxGjfSpcD
+Content-Type: application/problem+json
+
+{
+  "type": "https://api.getclean.ai/problems/invalid-field",
+  "title": "A field is invalid",
+  "status": 422,
+  "detail": "formats holds a value outside its set.",
+  "instance": "https://api.getclean.ai/requests/req_01JSUEOJ23EQgBxGjfSpcD",
+  "request_id": "req_01JSUEOJ23EQgBxGjfSpcD",
+  "who_must_act": "caller",
+  "retryable": false,
+  "violations": [
+    {
+      "kind": "not_allowed",
+      "place": "body",
+      "pointer": "/formats/0",
+      "field": "formats",
+      "message": "The value at the pointer is not a value of formats.",
+      "allowed_values": ["markdown", "html", "doclang", "json", "links", "screenshot", "raw_html"]
+    }
+  ]
+}
+```
+
+`type` names the problem. `who_must_act` says the caller resolves it. `violations` points at the value at `/formats/0` and lists the values it may take.
+
+## How to read a problem
+
+Compare on `type`. It is an absolute URI, `https://api.getclean.ai/problems/<name>`, and each one is kept for good, since clients compare on it. `title` is the type's published title, and `detail` is one sentence that names the thing.
+
+| Member | Present | What it holds |
+|---|---|---|
+| `type` | Always | The type's URI. The three digest types carry IANA's registered URIs, and `about:blank` stands on `405` and `406` only. |
+| `title` | Always | The type's published title, as the registry below gives it. |
+| `status` | On a top-level problem | The HTTP status. A problem nested in a batch result or a job has none. |
+| `detail` | Always | One sentence that names the thing. The credential is never echoed. |
+| `instance` | Always | `https://api.getclean.ai/requests/<request_id>`, with `/items/<index>` added inside a batch result. It is not dereferenceable until the service serves a request lookup. |
+| `request_id` | Always | This call's id. A nested problem carries the call's id too. |
+| `who_must_act` | Always | Who can resolve it: `caller`, `account_owner`, `third_party` or `service`. |
+| `retryable` | Always | `true` on six types, listed under [Which problems to retry](#which-problems-to-retry), and `false` on every other. |
+| `retry_after_seconds` | When known | The same integer as the `Retry-After` header. |
+| `change` | When the fix is data | The fix: a field to change, the values or the range it takes, or the operation to call instead. |
+| `violations` | On `invalid-field`, `model-work-refused`, and `invalid-request` located by place | Every violation of the request at once. |
+| `balance` | On `credit-exhausted` | The prepaid credit left. |
+| `amount_needed` | On the three exhausted types | What the binding limit lacks for the plain call: its price less what the limit holds. |
+| `funding_url` | On the three exhausted types | The account owner's page for that balance or budget at `https://app.getclean.ai`. |
+| `minimum_cap` | On `cost-exceeds-cap`, and on `policy-limit-exceeded` for the key's cap | The plain call's price, the least cap that would run it. |
+| `run_budget_remaining` | On `run-budget-exhausted` | What is left of the run's budget. |
+| `key_budget_remaining` | On `key-budget-exhausted` | What is left of the key's budget. |
+| `demand`, `demanded_by`, `applies_to` | On `legal-block` | The legal demand on GetClean, who demanded it, and what it covers. |
+| `expired_at` | On the three expired types | The hold's or the job's end, RFC 3339 in UTC. |
+| `scopes_required` | On `insufficient-scope` | Every scope the call needs. |
+
+A problem never carries a stack trace, an internal host name or address, a secret, another caller's data or third-party text.
+
+## Violations: what was wrong and where
+
+`violations` lists every violation of the request at once, so one answer is enough to fix them all. Each violation has a `kind`, a `place`, a `field` and a one-sentence `message`.
+
+| `kind` | What it means |
+|---|---|
+| `bound` | A length, count, range or size bound passed. |
+| `not_allowed` | A value outside the published set. |
+| `dependent` | A field that needs another. |
+| `exclusive` | Two fields that exclude each other. |
+| `order` | Two values in the wrong order. |
+| `duplicate` | A repeated value. |
+| `misplaced` | A known field at the wrong level. |
+| `unknown_field` | A field the operation does not take. |
+| `syntax` | A value of the wrong type or form. |
+| `required` | A required field missing. |
+
+`kind` is an open set: these are its published values. `place` is one of `body`, `form`, `query`, `path` and `header`. On a body, `pointer` is a JSON Pointer to the value. `allowed_values` and `bounds` come when they apply. `bounds` gives `min`, `max` and `default_value`, and `excluded_min` with `excluded_max` for a gap, such as 1 to 999 for `max_characters`.
+
+An upload that sent both a file and a URL breaks one rule in two places:
+
+```json
+{
+  "type": "https://api.getclean.ai/problems/invalid-field",
+  "title": "A field is invalid",
+  "status": 422,
+  "detail": "document and url exclude each other; send one.",
+  "instance": "https://api.getclean.ai/requests/req_01NdCq5kEHkceDpAo9MfAV",
+  "request_id": "req_01NdCq5kEHkceDpAo9MfAV",
+  "who_must_act": "caller",
+  "retryable": false,
+  "violations": [
+    {"kind": "exclusive", "place": "form", "field": "url", "message": "excludes document"},
+    {"kind": "exclusive", "place": "form", "field": "document", "message": "excludes url"}
+  ]
+}
+```
+
+## The fix as data
+
+When the fix is data, `change` carries it: the `field` to change, the `allowed_values` or `bounds` it takes, or the `operation` to call instead. `field` belongs to the operation that `operation` names when both are present, and to this request otherwise.
+
+A record read after its hold ended names the call that makes a new one:
+
+```json
+{
+  "type": "https://api.getclean.ai/problems/contents-expired",
+  "title": "The record's hold has ended",
+  "status": 410,
+  "detail": "The hold ended; fetch the page again.",
+  "instance": "https://api.getclean.ai/requests/req_01QEihyEKxtyS4rknqVJEV",
+  "request_id": "req_01QEihyEKxtyS4rknqVJEV",
+  "who_must_act": "caller",
+  "retryable": false,
+  "expired_at": "2026-11-06T12:00:00Z",
+  "change": {"operation": "fetch_contents", "field": "url"}
+}
+```
+
+## Which problems to retry
+
+Six types are `retryable`: `idempotency-key-in-flight`, `rate-limit-exceeded`, `concurrency-limit-exceeded`, `overloaded`, `gateway-error` and `gateway-timeout`. The first four come with `Retry-After` and `retry_after_seconds`, the seconds to wait before you ask again. The SDKs retry those four themselves. `gateway-error` and `gateway-timeout` are not billed. [Retry a call without paying twice](/api-reference/idempotency-and-retries) covers retries and idempotency keys.
+
+## Who acts
+
+The registry names who acts on each type. The caller is whoever sent the call. The account owner sets the key's scopes, its policy and its budgets, and funds the account. The service is GetClean itself. `who_must_act` also has the value `third_party`, which no type in this registry names.
+
+## The registry
+
+| Type | Status | Who acts | Title |
+|---|---|---|---|
+| [`invalid-request`](#invalid-request) | 400 | caller | The request is invalid |
+| [`page-token-invalid`](#page-token-invalid) | 400 | caller | The page token is invalid |
+| [`digest-unsupported-algorithms`](#digest-unsupported-algorithms) | 400 | caller | Unsupported Hashing Algorithms |
+| [`digest-invalid-values`](#digest-invalid-values) | 400 | caller | Invalid Digest Values |
+| [`digest-mismatched-values`](#digest-mismatched-values) | 400 | caller | Mismatched Digest Values |
+| [`unauthorized`](#unauthorized) | 401 | caller | The key is missing or rejected |
+| [`insufficient-scope`](#insufficient-scope) | 403 | caller for an access token, account owner for an API key | The key lacks a scope this call needs |
+| [`policy-limit-exceeded`](#policy-limit-exceeded) | 403 | account owner | The key's policy forbids this |
+| [`datasource-access-required`](#datasource-access-required) | 403 | account owner | The datasource needs a registered login |
+| [`credit-exhausted`](#credit-exhausted) | 403 | account owner | The credit is exhausted |
+| [`run-budget-exhausted`](#run-budget-exhausted) | 403 | account owner | The run's budget is exhausted |
+| [`key-budget-exhausted`](#key-budget-exhausted) | 403 | account owner | The key's budget is exhausted |
+| [`not-found`](#not-found) | 404 | caller | Not found |
+| [`idempotency-key-in-flight`](#idempotency-key-in-flight) | 409 | caller, after the wait | The same request is still running |
+| [`record-without-content`](#record-without-content) | 409 | caller | The record holds no content |
+| [`contents-expired`](#contents-expired) | 410 | caller | The record's hold has ended |
+| [`search-expired`](#search-expired) | 410 | caller | The search's hold has ended |
+| [`job-expired`](#job-expired) | 410 | caller | The job's term has ended |
+| [`body-too-large`](#body-too-large) | 413 | caller | The body is too large |
+| [`unsupported-media-type`](#unsupported-media-type) | 415 | caller | The media type is not supported |
+| [`invalid-field`](#invalid-field) | 422 | caller | A field is invalid |
+| [`destination-refused`](#destination-refused) | 422 | caller | The destination is refused |
+| [`model-work-refused`](#model-work-refused) | 422 | caller | Model work is refused by the request |
+| [`cost-exceeds-cap`](#cost-exceeds-cap) | 422 | caller | The cost cap is below the smallest call |
+| [`version-withdrawn`](#version-withdrawn) | 422 | caller | The version is no longer served |
+| [`records-incomparable`](#records-incomparable) | 422 | caller | The records cannot be compared |
+| [`idempotency-key-reused`](#idempotency-key-reused) | 422 | caller | The idempotency key was reused with another body |
+| [`no-datasource-can-run`](#no-datasource-can-run) | 422 | caller | No datasource can run this search |
+| [`datasource-unknown`](#datasource-unknown) | 422 | caller | The datasource is unknown |
+| [`datasource-not-searchable`](#datasource-not-searchable) | 422 | caller | The datasource has no search |
+| [`domain-set-unknown`](#domain-set-unknown) | 422 | caller | The domain set is unknown |
+| [`rate-limit-exceeded`](#rate-limit-exceeded) | 429 | caller, after the wait | The rate limit is exceeded |
+| [`concurrency-limit-exceeded`](#concurrency-limit-exceeded) | 429 | caller, after the wait | Too many calls are in flight |
+| [`legal-block`](#legal-block) | 451 | caller | Withheld under a legal demand |
+| [`about:blank`](#aboutblank) | 405, 406 | caller | the status's reason phrase |
+| [`internal-error`](#internal-error) | 500 | service | The service failed |
+| [`gateway-error`](#gateway-error) | 502 | service | A step behind the service failed |
+| [`overloaded`](#overloaded) | 503 | service | The service is overloaded |
+| [`gateway-timeout`](#gateway-timeout) | 504 | service | A step behind the service timed out |
+
+## The caller acts
+
+### invalid-request
+
+Status `400`. The request is invalid: an unparsable body, a bad path, query or header value, an id of the wrong kind, or a required header missing. `violations` locates each one by place. A plain HTTP request gets this type over that connection, with `detail` naming the HTTPS URL, never a redirect. An unknown `run_id` in a query gets it too, kind `not_allowed`.
+
+### page-token-invalid
+
+Status `400`. The page token is unknown, expired or another record's, or the filter changed since it was issued. `change.field` names `page_token`.
+
+### digest-unsupported-algorithms
+
+Status `400`, on the upload. `Content-Digest` carries no algorithm the API verifies. It verifies every `sha-256` and `sha-512` member. The `type` is IANA's registered URI.
+
+### digest-invalid-values
+
+Status `400`, on the upload. A `Content-Digest` value is one its algorithm cannot have produced. The `type` is IANA's registered URI.
+
+### digest-mismatched-values
+
+Status `400`, on the upload. The digest does not match the body. `Content-Digest` covers the whole multipart body as sent. The `type` is IANA's registered URI.
+
+### unauthorized
+
+Status `401`. The key is missing or rejected, and `WWW-Authenticate` carries the challenge. `detail` says which case it is:
+
+| Case | `detail` |
+|---|---|
+| No credential sent | No credential was sent: send Authorization: Bearer with an API key from https://app.getclean.ai, or sign in as https://auth.getclean.ai/auth.md describes. |
+| A credential sent and rejected | The credential is unknown, expired or revoked: refresh the token, sign in again, or use another key. |
+| A credential in the query string only | A credential in the query string is ignored: send it in the Authorization header as Bearer. |
+
+The credential is never echoed. A `401` carries no `RateLimit` or `RateLimit-Policy` header, since no key's quota applies.
+
+### not-found
+
+Status `404`. An id in a path or a body is unknown or belongs to another account, or a section or block id named in a query is unknown. `change.field` says which. Another account's id, held or expired, gets the same `404` with the same body. The replay of a call whose record was deleted gets it too, with `detail` naming the deletion. An unknown `run_id` is not this type: it is `422 invalid-field` in a body and `400 invalid-request` in a query.
+
+### record-without-content
+
+Status `409`. The record holds no content: its fetch failed, was refused or needs a person. `change` names `fetch_contents`. It is never retried. The record's `outcome.message` says what may work next.
+
+### contents-expired
+
+Status `410`. The record's hold has ended, at `expired_at`. `change.operation` is `fetch_contents` and `change.field` is `url`, so the page is fetched again. The answer never carries the record's URL. The type answers for 30 days after the end, to the owning account only, and then the id is `404`.
+
+### search-expired
+
+Status `410`. The search's hold has ended, at `expired_at`. `change.operation` is `search`. The answer never carries the search's query. The type answers for 30 days after the end, to the owning account only, and then the id is `404`.
+
+### job-expired
+
+Status `410`. The job's term has ended, at `expired_at`. `change.operation` is `upload_contents`. The type answers for 30 days after the end, to the owning account only, and then the id is `404`.
+
+### body-too-large
+
+Status `413`. The body passes its bound:
+
+| Body | Bound |
+|---|---|
+| A JSON body | 256 KB, a KB being 1,000 bytes |
+| A batch body | 4 MiB |
+| A comparison body | 8 MiB |
+| The upload's multipart body | 101 MiB |
+| The upload's document part | 100 MiB |
+
+Every bound counts the bytes as sent. A gzip-coded JSON body counts its decoded size.
+
+### unsupported-media-type
+
+Status `415`. The request's media type or content coding is not one the operation takes. `Accept` names the media types it takes. `Accept-Encoding` names the coding, `gzip`, when a content coding caused it.
+
+### invalid-field
+
+Status `422`. A body value or a rule is violated. `violations` lists every violation at once.
+
+### destination-refused
+
+Status `422`. The URL's text names localhost, a non-global literal address or a bad port. The check reads the URL as written, never a resolved address.
+
+### model-work-refused
+
+Status `422`. The request sent model work under its own `deterministic_only`, such as `json_schema` or `summary`. `violations` names every such field. `deterministic_only` and the model fields exclude each other, so send one or the other.
+
+### cost-exceeds-cap
+
+Status `422`. The request's `max_cost` is below the plain call's price. `minimum_cap` gives that price, the least cap that would run the call.
+
+### version-withdrawn
+
+Status `422`. `pinned_version` names a version that is not served, never or no longer. `change.allowed_values` lists the versions served.
+
+### records-incomparable
+
+Status `422`. The two records were made under another version or another `scope`, so they cannot be compared.
+
+### idempotency-key-reused
+
+Status `422`. The idempotency key was sent before with another body. One idempotency key belongs to one logical call.
+
+### no-datasource-can-run
+
+Status `422`. Every source of the search would be skipped before any work.
+
+### datasource-unknown
+
+Status `422`. A datasource id is unknown. `list_datasources` returns the catalog.
+
+### datasource-not-searchable
+
+Status `422`. The datasource has no search.
+
+### domain-set-unknown
+
+Status `422`. A `set:NAME` names no known domain set.
+
+### legal-block
+
+Status `451`. A legal demand on GetClean itself withholds the answer. `demand`, `demanded_by` and `applies_to` name it, and `Link` with `rel="blocked-by"` points at GetClean's own notice page. `retryable` is `false`. The next step is another source, never another `subject_country`. A demand on a source, not on GetClean, is never a problem: it is that record's or that source's outcome `legal_block`.
+
+### about:blank
+
+Status `405` or `406`. A method the resource does not offer gets `405` with `Allow`. A representation it cannot give gets `406`. `title` is the status's reason phrase.
+
+## The caller acts after the wait
+
+### idempotency-key-in-flight
+
+Status `409`. A call with the same idempotency key is still running. `Retry-After` and `retry_after_seconds` say when to ask again. The SDKs retry it.
+
+### rate-limit-exceeded
+
+Status `429`. The key's requests policy was exceeded, and `detail` names it. `Retry-After` and `retry_after_seconds` say when to ask again. The SDKs retry it.
+
+### concurrency-limit-exceeded
+
+Status `429`. Too many calls are in flight, past the key's concurrency policy, and `detail` names it. `Retry-After` and `retry_after_seconds` say when to ask again. The SDKs retry it.
+
+## The account owner acts
+
+### insufficient-scope
+
+Status `403`. The key lacks a scope this call needs. `scopes_required` and `WWW-Authenticate` list every scope the call needs. For an access token, the caller acts and may ask the person again. For an API key, the account owner acts, since the owner sets its scopes.
+
+### policy-limit-exceeded
+
+Status `403`. The key's policy forbids this: a domain, a switch, a floor or a cap, or a request looser than the policy. When the key's cap is below the smallest call, `minimum_cap` gives that call's price. A request never loosens the key's policy.
+
+### datasource-access-required
+
+Status `403`. Every source the search named needs a login the key has not registered. One such source among others is not a problem: it becomes a coverage gap `access_needed`, and the rest run.
+
+### credit-exhausted
+
+Status `403`. The prepaid credit is exhausted. `balance` is what is left, `amount_needed` is what the plain call lacks, and `funding_url` is the account owner's page for the credit. A balance of `0.0020` against a fetch priced `0.0050` gives an `amount_needed` of `0.0030`.
+
+### run-budget-exhausted
+
+Status `403`. The run's budget is exhausted. `run_budget_remaining`, `amount_needed` and `funding_url` come with it.
+
+### key-budget-exhausted
+
+Status `403`. The key's budget is exhausted. `key_budget_remaining`, `amount_needed` and `funding_url` come with it.
+
+## The service acts
+
+### internal-error
+
+Status `500`. GetClean itself failed, never a source. The service acts, and the call is not retried.
+
+### gateway-error
+
+Status `502`. A step behind the service failed: the model step that is the whole call answered wrongly. A source's failure is never this type; it is an outcome. `retryable` is `true`, and the call is not billed.
+
+### overloaded
+
+Status `503`. GetClean could not start the request within its published queue bound. A batch item that was not started gets it too. `Retry-After` and `retry_after_seconds` say when to ask again. The SDKs retry it.
+
+### gateway-timeout
+
+Status `504`. The model step that is the whole call passed its bound, `bounds.contents.model_step_seconds`. A source's timeout is never this type; it is an outcome. `retryable` is `true`, and the call is not billed.

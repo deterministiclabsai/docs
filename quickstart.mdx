@@ -1,0 +1,375 @@
+---
+title: "Quickstart: fetch a page and read the answer"
+sidebarTitle: "Quickstart"
+description: "Make an API key, fetch a page with two highlights and a summary in one call, read the outcome and the cost, then read one section again for free."
+keywords:
+  - "quickstart"
+  - "first call"
+  - "fetch_contents"
+  - "get_section"
+  - "API key"
+  - "GetClean"
+---
+
+In this quickstart you make one call to GetClean that fetches a quarterly report page, marks two passages in it and writes a summary. Then you read one section of the same record a second time. The second call costs nothing, because GetClean already holds the record and answers from the same copy.
+
+## Before you start
+
+You need an API key from `https://app.getclean.ai`. Every key carries an explicit list of scopes, and this quickstart uses three of them:
+
+| Scope | Why this quickstart needs it |
+| --- | --- |
+| `contents:fetch` | The first call fetches a page. |
+| `contents:model` | The first call asks for highlights and a summary, which a model may work on. |
+| `contents:read` | The second call reads a section of the held record. |
+
+Put the key in your shell. The SDKs read the same variable when you pass no key.
+
+```bash
+export GETCLEAN_API_KEY="your-api-key"
+```
+
+To call GetClean from code, install an SDK. The curl command below needs nothing else.
+
+<CodeGroup>
+
+```bash Python
+pip install getclean
+```
+
+```bash TypeScript
+npm install getclean
+```
+
+```bash Java
+# Maven Central: ai.getclean:getclean. The version is set at launch.
+```
+
+```bash Go
+go get github.com/deterministic-labs/getclean-go
+```
+
+```bash title="C#"
+dotnet add package GetClean
+```
+
+</CodeGroup>
+
+<Info>
+  The SDKs are published at launch. These install commands work from then on.
+</Info>
+
+## Make the first call
+
+Fetch the page, find two strings in it, and ask for a summary.
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.getclean.ai/v1/contents \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/q3", "highlights": ["Revenue rose 12%", "what drove the margin"], "summary": true}'
+```
+
+```python Python
+from getclean import GetClean
+
+client = GetClean()  # reads GETCLEAN_API_KEY
+
+record = client.fetch_contents(
+    url="https://example.com/q3",
+    highlights=["Revenue rose 12%", "what drove the margin"],
+    summary=True,
+)
+
+print(record.outcome.kind)  # delivered
+print(record.summary)
+print(record.id)            # cnt_3Fk9abaUhNX7t2eKkgfd3e
+```
+
+```typescript TypeScript
+import { GetClean } from "getclean";
+
+const client = new GetClean({ apiKey: process.env.GETCLEAN_API_KEY });
+
+const record = await client.fetchContents({
+  url: "https://example.com/q3",
+  highlights: ["Revenue rose 12%", "what drove the margin"],
+  summary: true,
+});
+
+console.log(record.outcome.kind); // delivered
+console.log(record.summary);
+console.log(record.id);           // cnt_3Fk9abaUhNX7t2eKkgfd3e
+```
+
+```java Java
+// To be confirmed against the generated Java SDK, ai.getclean:getclean.
+```
+
+```go Go
+// To be confirmed against the generated Go SDK, github.com/deterministic-labs/getclean-go.
+```
+
+```csharp title="C#"
+// To be confirmed against the generated C# SDK, GetClean on NuGet.
+```
+
+</CodeGroup>
+
+<Note>
+  The Java, Go and C# forms on this page are to be confirmed against the generated SDKs.
+</Note>
+
+## Read the answer
+
+GetClean answers `201 Created`, and the `Location` header names the record it made: `https://api.getclean.ai/v1/contents/cnt_3Fk9abaUhNX7t2eKkgfd3e`. The body is the record itself.
+
+```json title="201 Created" expandable
+{
+  "id": "cnt_3Fk9abaUhNX7t2eKkgfd3e",
+  "outcome": {
+    "kind": "delivered",
+    "reason": "whole"
+  },
+  "notices": [],
+  "fetched_at": "2026-11-04T08:40:12Z",
+  "fingerprint": "sha-256=:Qm9HMC25CiwhR/SGuoq8PkLBexHyDIsb7J7tqUETc2z=:",
+  "scope": "main",
+  "record_scope": "main",
+  "formats": [
+    "markdown"
+  ],
+  "truncated": false,
+  "markdown": "# Quarterly results\n\n<mark id=\"h1\">Revenue rose 12%</mark> to … <mark id=\"h2\">Margin expanded on lower input costs and mix.</mark> …",
+  "counts": {
+    "characters": 6210,
+    "blocks": {
+      "heading": 4,
+      "text": 22,
+      "table": 1
+    },
+    "links": {
+      "page": 9
+    }
+  },
+  "highlights": [
+    {
+      "id": "h1",
+      "query_index": 0,
+      "text": "Revenue rose 12%",
+      "basis": "exact",
+      "section_id": "s1",
+      "block_id": "b3"
+    },
+    {
+      "id": "h2",
+      "query_index": 1,
+      "text": "Margin expanded on lower input costs and mix.",
+      "basis": "judged",
+      "section_id": "s2",
+      "block_id": "b9"
+    }
+  ],
+  "summary": "Revenue rose 12% in the quarter, driven by volume in Europe; margin expanded on lower input costs and mix; guidance was raised.",
+  "hidden_text": [],
+  "left_out": [
+    {
+      "kind": "navigation",
+      "characters": 1480
+    }
+  ],
+  "source": {
+    "url": "https://example.com/q3",
+    "final_url": "https://example.com/q3",
+    "redirects": [],
+    "status_code": 200,
+    "media_type": "text/html",
+    "carrier": "web",
+    "access_kind": "open",
+    "title": "Quarterly results",
+    "authors": [],
+    "published_date": "2026-10-28",
+    "published_date_precision": "day",
+    "published_date_basis": "structured_data",
+    "modified_date": null,
+    "publisher": "Example Corp",
+    "canonical_url": null,
+    "language": "en",
+    "language_versions": [],
+    "profile": {
+      "kind": "company",
+      "role": "primary",
+      "independence": "unknown",
+      "review": {
+        "kind": "none",
+        "by": null
+      }
+    },
+    "robots": "allowed",
+    "declared_terms": [],
+    "structured_data": [
+      {
+        "@type": "NewsArticle",
+        "headline": "Quarterly results"
+      }
+    ],
+    "origins": [
+      {
+        "origin": "https://cdn.example.com",
+        "kind": "script"
+      }
+    ],
+    "visitor": {
+      "country": "DE",
+      "language": "de-DE,de;q=0.9",
+      "network": "datacenter"
+    }
+  },
+  "execution": {
+    "version": "1.0.0",
+    "configuration": "cfg-2026-11",
+    "models": [
+      {
+        "step": "highlights",
+        "version": "hl-2026-10"
+      },
+      {
+        "step": "summary",
+        "version": "sum-2026-10"
+      }
+    ],
+    "elapsed_seconds": 7.1
+  },
+  "cost": {
+    "ceiling": {
+      "amount": "0.0500",
+      "currency": "USD"
+    },
+    "actual": {
+      "amount": "0.0090",
+      "currency": "USD"
+    },
+    "units": {
+      "contents": 1,
+      "model_steps": 2
+    },
+    "replayed": false
+  },
+  "retention": "hold",
+  "run_id": "run_default",
+  "expires_at": "2026-11-06T08:40:12Z",
+  "request_id": "req_01JzsALAAlsNsdoVz1EElr"
+}
+```
+
+Read it from the top. Every record comes in this order, so the first member always says what happened.
+
+| Member | In this answer | What it tells you |
+| --- | --- | --- |
+| `outcome` | `delivered`, reason `whole` | What happened. `whole` means all the engine kept of what the site served; it is not a promise that the page is the article. |
+| `notices` | none | Facts to read before the result. A notice is never an error. |
+| `markdown` | the page's text | The content, with `<mark id="h1">` and `<mark id="h2">` around the two passages found. |
+| `highlights` | `h1` in `s1`, block `b3`; `h2` in `s2`, block `b9` | Where each string stands. The first stands in the page word for word, `exact`. The second is a question, so a model picked the block that bears on it, `judged`. |
+| `summary` | one sentence | A model's summary, at most 1,500 characters, in the content's language. |
+| `left_out` | navigation, 1,480 characters | What the main content left out, by kind and size. |
+| `source` | title, publisher, dates | The page's own facts as its code declares them. GetClean does not check them against the page. |
+| `cost` | 1 `contents`, 2 `model_steps` | The bill: the fetch, one model step for the judged string and one for the summary. |
+| `expires_at` | 2026-11-06T08:40:12Z | When the hold ends: 48 hours after the last call on the record, never more than 30 days after it was made. |
+
+<Note>
+  The amounts in these answers are example figures, not GetClean's prices.
+</Note>
+
+## Read one section again, free
+
+The second highlight stands in section `s2`. Read that section from the held record:
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.getclean.ai/v1/contents/cnt_3Fk9abaUhNX7t2eKkgfd3e/sections/s2 \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY"
+```
+
+```python Python
+section = client.get_section(record.id, "s2")
+
+print(section.section.title)  # Margin
+print(section.truncated)      # False
+```
+
+```typescript TypeScript
+const section = await client.getSection(record.id, "s2");
+
+console.log(section.section.title); // Margin
+console.log(section.truncated);     // false
+```
+
+```java Java
+// To be confirmed against the generated Java SDK, ai.getclean:getclean.
+```
+
+```go Go
+// To be confirmed against the generated Go SDK, github.com/deterministic-labs/getclean-go.
+```
+
+```csharp title="C#"
+// To be confirmed against the generated C# SDK, GetClean on NuGet.
+```
+
+</CodeGroup>
+
+```json title="200 OK"
+{
+  "contents_id": "cnt_3Fk9abaUhNX7t2eKkgfd3e",
+  "final_url": "https://example.com/q3",
+  "fetched_at": "2026-11-04T08:40:12Z",
+  "fingerprint": "sha-256=:Qm9HMC25CiwhR/SGuoq8PkLBexHyDIsb7J7tqUETc2z=:",
+  "scope": "main",
+  "version": "1.0.0",
+  "configuration": "cfg-2026-11",
+  "expires_at": "2026-11-06T08:40:12Z",
+  "section": {
+    "id": "s2",
+    "title": "Margin",
+    "level": 2,
+    "characters": 1810,
+    "basis": "structure"
+  },
+  "formats": [
+    "markdown"
+  ],
+  "markdown": "## Margin\n\n…",
+  "truncated": false,
+  "notices": [],
+  "request_id": "req_01JgELUWGGDGlc96clfpJQ"
+}
+```
+
+The section's 1,810 characters fit under the default bound of 20,000, so the whole section came and `truncated` is false. The answer carries no `cost`: this call fetched nothing and billed nothing. It also moved the hold, so the record now lives until 48 hours after this call.
+
+<Note>
+  The Python and TypeScript forms of `get_section` are to be confirmed against the generated SDKs.
+</Note>
+
+## Where to go next
+
+<Columns cols={2}>
+  <Card title="How an answer reads" href="/understand/how-an-answer-reads">
+    The five outcome kinds, notices, the cost, and what a problem says when the API refuses a call.
+  </Card>
+
+  <Card title="The research loop" href="/guides/the-research-loop">
+    Search a question, find where a record says it, read that section, fetch the next lead.
+  </Card>
+
+  <Card title="Fetch a page" href="/guides/fetch-a-page">
+    Formats, sizes, highlights, model work, and what may work next when a page will not load.
+  </Card>
+
+  <Card title="Connect an agent" href="/agents/mcp-server">
+    Give an agent the same calls as tools through one MCP address.
+  </Card>
+</Columns>

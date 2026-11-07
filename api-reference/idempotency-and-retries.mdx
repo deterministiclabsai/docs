@@ -1,0 +1,98 @@
+---
+title: "Retry a call without paying twice"
+sidebarTitle: "Idempotency and retries"
+description: "Send one Idempotency-Key per logical call and reuse it on every retry: GetClean returns the first answer again, bills once, and says when to ask again."
+keywords: ["Idempotency-Key", "idempotency", "retry", "Retry-After", "retryable", "replayed", "409", "429", "503"]
+---
+
+GetClean recognizes a retry by its idempotency key. Send one `Idempotency-Key` per logical call and reuse it on every retry: the same idempotency key with the same body returns the first answer again, with `replayed` true on its `cost` and no second charge.
+
+## A call with an idempotency key
+
+```bash
+curl https://api.getclean.ai/v1/contents \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY" \
+  -H "Idempotency-Key: fetch-q3-2026-11-04" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/q3", "highlights": ["Revenue rose 12%", "what drove the margin"], "summary": true}'
+```
+
+The first answer is a record that cost `0.0090` USD, with `"replayed": false` on its `cost`. Suppose the connection drops before that answer arrives. Send the same request with the same idempotency key, and the answer is the first answer again, with three differences:
+
+| Member | On the replay |
+|---|---|
+| `request_id` | This call's id, as in the `Request-Id` header. |
+| `expires_at` | The hold's end as it stands now. |
+| `cost.replayed` | `true`. Nothing is charged a second time. |
+
+## Which operations take an idempotency key
+
+| Operation | `Idempotency-Key` |
+|---|---|
+| [`fetch_contents`](/api-reference/fetch-contents) | Optional |
+| [`highlight_contents`](/api-reference/highlight-contents) | Optional |
+| [`fill_schema`](/api-reference/fill-schema) | Optional |
+| [`summarize_contents`](/api-reference/summarize-contents) | Optional |
+| [`search`](/api-reference/search) | Optional |
+| [`upload_contents`](/api-reference/upload-contents) | Required |
+| [`fetch_contents_batch`](/api-reference/fetch-contents-batch) | Required |
+| [`search_batch`](/api-reference/search-batch) | Required |
+
+The three operations that require it are the ones where a duplicate costs the most. A required idempotency key that is missing gets `400 invalid-request` naming the header. No other operation has the parameter.
+
+The SDKs, the command line and the MCP server send one idempotency key per logical call when you give none.
+
+## The form of an idempotency key
+
+An idempotency key is an opaque string of 1 to 255 visible ASCII characters, matching `^[!-~]{1,255}$`. It is used as sent, so a value written as a quoted Structured Field String keeps its quotes as part of the key. The form follows the IETF draft `draft-ietf-httpapi-idempotency-key-header`, revision 08, with that one stated departure.
+
+Choose one per logical call, such as `fetch-q3-2026-11-04` for one fetch of one page on one day.
+
+## What the same idempotency key gets
+
+| You send | You get |
+|---|---|
+| The same idempotency key and the same body | The first answer again, with this call's `request_id`, the hold's `expires_at` as it stands, and `replayed` true on every `cost`. No second charge. |
+| The same idempotency key while the first call still runs | `409 idempotency-key-in-flight`, with `Retry-After`. |
+| The same idempotency key with another body | `422 idempotency-key-reused`. |
+| The same idempotency key after the record was deleted | `404 not-found`, with `detail` naming the deletion. |
+
+On the upload, the body is compared by a digest over the document and the fields, and a retried start with the same idempotency key is the same job.
+
+## How long an idempotency key holds
+
+GetClean stores an idempotency key for 24 hours, per account, and only for billed answers and running jobs. A free answer is not stored. A call that may bill is held in the store from its start, so a retry that arrives while it runs gets `409 idempotency-key-in-flight`.
+
+## Which problems to retry
+
+`retryable` is `true` on six problem types and `false` on every other.
+
+| Type | Status | When to ask again |
+|---|---|---|
+| [`idempotency-key-in-flight`](/api-reference/problems#idempotency-key-in-flight) | 409 | After `Retry-After`. The SDKs retry it. |
+| [`rate-limit-exceeded`](/api-reference/problems#rate-limit-exceeded) | 429 | After `Retry-After`. The SDKs retry it. |
+| [`concurrency-limit-exceeded`](/api-reference/problems#concurrency-limit-exceeded) | 429 | After `Retry-After`. The SDKs retry it. |
+| [`overloaded`](/api-reference/problems#overloaded) | 503 | After `Retry-After`. The SDKs retry it. |
+| [`gateway-error`](/api-reference/problems#gateway-error) | 502 | No `Retry-After` is sent. The call was not billed. |
+| [`gateway-timeout`](/api-reference/problems#gateway-timeout) | 504 | No `Retry-After` is sent. The call was not billed. |
+
+`Retry-After` is whole seconds, 1 or more, and the body repeats it as `retry_after_seconds`. `internal-error` is GetClean's own failure and is not retried. `record-without-content` is never retried.
+
+## A page that could not be read is not a problem
+
+A fetch whose page could not be read answers `201` with a record, and the record's `outcome` says why. Its `outcome.message` says what may work next. The guidance by reason:
+
+| Outcome reason | What may work next |
+|---|---|
+| `dns_timeout`, `connection_refused`, `connection_timeout`, `connection_terminated`, `tls_protocol_error`, `http_response_timeout`, `http_response_incomplete`, `rate_limited`, `server_error`, `robots_unreachable` | Later. |
+| `challenge_served` | Later, on sites that do not challenge every new visitor. Or a person opens the URL and uploads the saved page with `captured_url`. |
+| `deadline` | A larger `wait_seconds`. |
+| `cost_capped` | A larger `max_cost`, or the account owner funds the account or raises the cap. |
+| `budget_capped` | The account owner raises the budget. |
+| `payment_required` | A `max_source_price`. |
+| `time_capped`, on a document at a URL | `upload_contents` with the `url`, which parses as a job. |
+| `region_restricted` | Another `subject_country`. |
+| `sign_in_needed`, `paywalled`, `password_protected` | A person. |
+| Every other reason | The same request will not work. Another `subject_country` never works for a legal block. |
+
+Trying a page again is a new logical call, so send it with a new idempotency key. The same idempotency key returns the first answer again whenever that answer was billed.

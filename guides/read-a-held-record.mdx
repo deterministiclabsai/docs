@@ -1,0 +1,568 @@
+---
+title: "Read a held record: map, sections, blocks, links"
+sidebarTitle: "Read a record"
+description: "Read a held record again without fetching it: the text in any format, the map of its sections, one section, its blocks, its links, passages found."
+keywords: ["get_contents", "get_section", "list_blocks", "list_links", "highlight_contents", "map", "sections", "held record"]
+---
+
+Once GetClean holds a record, every question about it is answered from the same capture, without fetching the page again. `get_contents`, `get_section`, `list_blocks` and `list_links` bill nothing. Each call also moves the hold to 48 hours after it, never past 30 days from the record's making.
+
+## Which call answers which question
+
+| Your question | The call | Price |
+|---|---|---|
+| What is the whole text, in another format, size or view? | `get_contents` | Free |
+| Which sections does the record have, and how large is each? | `get_contents` with `max_characters=0` | Free |
+| What does one section say? | `get_section` | Free |
+| Which tables, figures or other blocks does it hold? | `list_blocks` | Free |
+| Which links does it hold? | `list_links` | Free |
+| Where does it say a thing? | `highlight_contents` | Free when found word for word; 1 model step when a model judged |
+| What changed since an earlier record? | [`compare_contents`](/guides/compare-two-captures) | Free |
+
+## Read the record again
+
+`get_contents` takes a `cnt_` id that `fetch_contents`, `upload_contents` or `search` made, and fetches nothing from the web. It reads the record in any format, at any size, in either view.
+
+<CodeGroup>
+
+```bash cURL
+curl "https://api.getclean.ai/v1/contents/cnt_5Gh7cdyeVQ6qoJhBFE31L1?max_characters=200000" \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY"
+```
+
+```python Python
+record = client.get_contents("cnt_5Gh7cdyeVQ6qoJhBFE31L1", max_characters=200000)
+
+print(record.truncated)  # False
+```
+
+```typescript TypeScript
+const record = await client.getContents("cnt_5Gh7cdyeVQ6qoJhBFE31L1", { max_characters: 200000 });
+
+console.log(record.truncated); // false
+```
+
+```java Java
+// To be confirmed against the generated Java SDK, ai.getclean:getclean.
+```
+
+```go Go
+// To be confirmed against the generated Go SDK, github.com/deterministic-labs/getclean-go.
+```
+
+```csharp title="C#"
+// To be confirmed against the generated C# SDK, GetClean on NuGet.
+```
+
+</CodeGroup>
+
+```json title="200 OK" expandable
+{
+  "id": "cnt_5Gh7cdyeVQ6qoJhBFE31L1",
+  "outcome": {
+    "kind": "delivered",
+    "reason": "sections_only"
+  },
+  "notices": [],
+  "fetched_at": "2026-11-04T08:50:30Z",
+  "fingerprint": "sha-256=:Vn2VtrGw48PmhVZSc0+War4NLekU3Ecg5FLbdwF1nMM=:",
+  "scope": "main",
+  "record_scope": "main",
+  "formats": [
+    "markdown"
+  ],
+  "truncated": false,
+  "markdown": "# Annual report 2025\n\n…the whole text under max_characters 200000…",
+  "counts": {
+    "characters": 61200,
+    "blocks": {
+      "heading": 14,
+      "text": 120,
+      "table": 6
+    },
+    "links": {
+      "page": 40
+    }
+  },
+  "hidden_text": [],
+  "left_out": [
+    {
+      "kind": "navigation",
+      "characters": 1480
+    }
+  ],
+  "source": {
+    "url": "https://example.com/annual-2025",
+    "final_url": "https://example.com/annual-2025",
+    "redirects": [],
+    "status_code": 200,
+    "media_type": "text/html",
+    "carrier": "web",
+    "access_kind": "open",
+    "title": "Annual report 2025",
+    "authors": [],
+    "publisher": "Example Corp",
+    "canonical_url": null,
+    "published_date": "2026-03-12",
+    "published_date_precision": "day",
+    "published_date_basis": "structured_data",
+    "modified_date": null,
+    "language": "en",
+    "language_versions": [],
+    "profile": {
+      "kind": "company",
+      "role": "primary",
+      "independence": "unknown",
+      "review": {
+        "kind": "none",
+        "by": null
+      }
+    },
+    "robots": "allowed",
+    "declared_terms": [],
+    "structured_data": [],
+    "origins": [],
+    "visitor": {
+      "country": "DE",
+      "language": "de-DE,de;q=0.9",
+      "network": "datacenter"
+    }
+  },
+  "execution": {
+    "version": "1.0.0",
+    "configuration": "cfg-2026-11",
+    "models": [],
+    "elapsed_seconds": 9.0
+  },
+  "retention": "hold",
+  "run_id": "run_default",
+  "expires_at": "2026-11-06T12:00:00Z",
+  "request_id": "req_01PaufBlzLM6CZzXNwUinf"
+}
+```
+
+The fetch of this annual report allowed less text than its 61,200 characters, so its stored outcome is `delivered` with the reason `sections_only`. Read again with `max_characters=200000`, the whole text fits: this answer carries it, and `truncated` is false. The stored outcome is never rewritten; `truncated` belongs to this answer. There is no `cost`, because the call is free.
+
+| Query parameter | Default | What it does |
+|---|---|---|
+| `max_characters` | 20,000 | The most text returned, in code points. `0` returns the map and the facts, no text. |
+| `scope` | the record's own view | `main` or `whole_page`. |
+| `formats` | `markdown` | 1 to 5 of `markdown`, `html`, `doclang`, `json`, `links`, one value per repeated key: `formats=markdown&formats=html`. A held `screenshot` and `raw_html` ride on every answer. |
+| `block_kinds` | all kinds | Only blocks of these kinds, one value per repeated key. |
+
+## Read the map first
+
+With `max_characters=0`, `get_contents` returns no text, only the map and the facts. The map, `sections`, has one row per section: its id, its title, its level and its size in characters. `s0` is the lead; on a page without headings, it is the whole document. This map came with the first lead of a search, a page of 9,500 characters fetched under a bound of 8,000:
+
+```json
+{
+  "sections": [
+    {
+      "id": "s0",
+      "title": null,
+      "level": 0,
+      "characters": 400,
+      "basis": "structure"
+    },
+    {
+      "id": "s4",
+      "title": "Article 50",
+      "level": 2,
+      "characters": 9100,
+      "basis": "structure"
+    }
+  ]
+}
+```
+
+A row's `characters` counts the section's whole subtree, so you know a section's size before you read it. `basis` says where a section came from: `structure`, the page's headings or the document's own structure; `outline`, an untagged PDF's outline; `page`, one row per page. Level 1 and `s0` always come. Deeper levels come while their rows fit, and the notice `sections_cut` says when levels were left out.
+
+To ask a held record for its map:
+
+<CodeGroup>
+
+```bash cURL
+curl "https://api.getclean.ai/v1/contents/cnt_8Lq5XFriyaJ0jEc2oPNx6E?max_characters=0" \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY"
+```
+
+```python Python
+record = client.get_contents("cnt_8Lq5XFriyaJ0jEc2oPNx6E", max_characters=0)
+
+for row in record.sections:
+    print(row.id, row.title, row.characters)
+```
+
+```typescript TypeScript
+const record = await client.getContents("cnt_8Lq5XFriyaJ0jEc2oPNx6E", { max_characters: 0 });
+
+for (const row of record.sections ?? []) {
+  console.log(row.id, row.title, row.characters);
+}
+```
+
+```java Java
+// To be confirmed against the generated Java SDK, ai.getclean:getclean.
+```
+
+```go Go
+// To be confirmed against the generated Go SDK, github.com/deterministic-labs/getclean-go.
+```
+
+```csharp title="C#"
+// To be confirmed against the generated C# SDK, GetClean on NuGet.
+```
+
+</CodeGroup>
+
+## Read one section
+
+`get_section` reads one section by the id its row gives, in the formats you ask for.
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.getclean.ai/v1/contents/cnt_3Fk9abaUhNX7t2eKkgfd3e/sections/s2 \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY"
+```
+
+```python Python
+section = client.get_section("cnt_3Fk9abaUhNX7t2eKkgfd3e", "s2")
+
+print(section.section.title)  # Margin
+```
+
+```typescript TypeScript
+const section = await client.getSection("cnt_3Fk9abaUhNX7t2eKkgfd3e", "s2");
+
+console.log(section.section.title); // Margin
+```
+
+```java Java
+// To be confirmed against the generated Java SDK, ai.getclean:getclean.
+```
+
+```go Go
+// To be confirmed against the generated Go SDK, github.com/deterministic-labs/getclean-go.
+```
+
+```csharp title="C#"
+// To be confirmed against the generated C# SDK, GetClean on NuGet.
+```
+
+</CodeGroup>
+
+```json title="200 OK"
+{
+  "contents_id": "cnt_3Fk9abaUhNX7t2eKkgfd3e",
+  "final_url": "https://example.com/q3",
+  "fetched_at": "2026-11-04T08:40:12Z",
+  "fingerprint": "sha-256=:Qm9HMC25CiwhR/SGuoq8PkLBexHyDIsb7J7tqUETc2z=:",
+  "scope": "main",
+  "version": "1.0.0",
+  "configuration": "cfg-2026-11",
+  "expires_at": "2026-11-06T08:40:12Z",
+  "section": {
+    "id": "s2",
+    "title": "Margin",
+    "level": 2,
+    "characters": 1810,
+    "basis": "structure"
+  },
+  "formats": [
+    "markdown"
+  ],
+  "markdown": "## Margin\n\n…",
+  "truncated": false,
+  "notices": [],
+  "request_id": "req_01JgELUWGGDGlc96clfpJQ"
+}
+```
+
+What comes back depends on the section's size against `max_characters`, 20,000 by default:
+
+| The section | What comes back | `truncated` |
+|---|---|---|
+| Fits | Its text, in the formats asked. | `false` |
+| Too large, with subsections | Its own text before the first subsection, and the subsections' rows, which you read by their own ids. | `true` |
+| Too large, with no subsections | Its text cut at a block edge, and a `next_page_token` that continues it. | `true` |
+| Read with `max_characters=0` | Its row and its subsections' rows, no text. | `false` |
+
+One block larger than the bound is cut inside it, at a row, item, line or sentence edge. The page token binds the other parameters, so a changed parameter is refused with `400 page-token-invalid`, and the token lives as long as the record. A record that failed, was refused or needs a person holds no content, so reading its sections is answered `409 record-without-content`.
+
+## List the blocks
+
+`list_blocks` returns the record's blocks in document order, a page at a time. Narrow them by kind, section, page or id; the filters intersect.
+
+<CodeGroup>
+
+```bash cURL
+curl "https://api.getclean.ai/v1/contents/cnt_3Fk9abaUhNX7t2eKkgfd3e/blocks?block_kinds=table" \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY"
+```
+
+```python Python
+for block in client.list_blocks("cnt_3Fk9abaUhNX7t2eKkgfd3e", block_kinds=["table"]):
+    print(block.table.rows)  # [["Quarter", "Margin"], ["Q3", "41.2%"]]
+```
+
+```typescript TypeScript
+for await (const block of client.listBlocks("cnt_3Fk9abaUhNX7t2eKkgfd3e", { block_kinds: ["table"] })) {
+  console.log(block.table?.rows);
+}
+```
+
+```java Java
+// To be confirmed against the generated Java SDK, ai.getclean:getclean.
+```
+
+```go Go
+// To be confirmed against the generated Go SDK, github.com/deterministic-labs/getclean-go.
+```
+
+```csharp title="C#"
+// To be confirmed against the generated C# SDK, GetClean on NuGet.
+```
+
+</CodeGroup>
+
+```json title="200 OK"
+{
+  "contents_id": "cnt_3Fk9abaUhNX7t2eKkgfd3e",
+  "final_url": "https://example.com/q3",
+  "fetched_at": "2026-11-04T08:40:12Z",
+  "fingerprint": "sha-256=:Qm9HMC25CiwhR/SGuoq8PkLBexHyDIsb7J7tqUETc2z=:",
+  "scope": "main",
+  "version": "1.0.0",
+  "configuration": "cfg-2026-11",
+  "expires_at": "2026-11-06T08:40:12Z",
+  "blocks": [
+    {
+      "id": "b7",
+      "kind": "table",
+      "section_id": "s2",
+      "characters": 412,
+      "links": [],
+      "highlight_ids": [],
+      "table": {
+        "caption": null,
+        "rows": [
+          [
+            "Quarter",
+            "Margin"
+          ],
+          [
+            "Q3",
+            "41.2%"
+          ]
+        ],
+        "spans": [],
+        "header_rows": [
+          0
+        ],
+        "header_columns": [],
+        "basis": "structure"
+      }
+    }
+  ],
+  "notices": [],
+  "request_id": "req_01J3WbmHqruHQMHIwlFrMB"
+}
+```
+
+The table comes as its rows, cell by cell, with its header rows named.
+
+| Filter | What it keeps |
+|---|---|
+| `block_kinds` | Blocks of these kinds: `text`, `heading`, `code`, `math`, `divider`, `interactive`, `table`, `image`, `embed`, `media`. |
+| `section_id` | The blocks of one section's subtree. |
+| `page_number` | The blocks of one page of a document. |
+| `block_ids` | 1 to 50 blocks by id, such as the ids a highlight names. |
+| `start_block_id` | The page of results begins at this block. |
+
+A page ends at `page_size` blocks, 50 by default and 200 at most, or before the block that would pass `max_characters`. `next_page_token` is absent on the last page.
+
+## List the links
+
+`list_links` returns the record's links with their kind and their place: the same index a fetch returns under `formats: links`, without its cap of 1,000.
+
+<CodeGroup>
+
+```bash cURL
+curl "https://api.getclean.ai/v1/contents/cnt_3Fk9abaUhNX7t2eKkgfd3e/links?link_kinds=file" \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY"
+```
+
+```python Python
+for link in client.list_links("cnt_3Fk9abaUhNX7t2eKkgfd3e", link_kinds=["file"]):
+    print(link.url, link.block_id)
+```
+
+```typescript TypeScript
+for await (const link of client.listLinks("cnt_3Fk9abaUhNX7t2eKkgfd3e", { link_kinds: ["file"] })) {
+  console.log(link.url, link.block_id);
+}
+```
+
+```java Java
+// To be confirmed against the generated Java SDK, ai.getclean:getclean.
+```
+
+```go Go
+// To be confirmed against the generated Go SDK, github.com/deterministic-labs/getclean-go.
+```
+
+```csharp title="C#"
+// To be confirmed against the generated C# SDK, GetClean on NuGet.
+```
+
+</CodeGroup>
+
+```json title="200 OK"
+{
+  "contents_id": "cnt_3Fk9abaUhNX7t2eKkgfd3e",
+  "final_url": "https://example.com/q3",
+  "fetched_at": "2026-11-04T08:40:12Z",
+  "fingerprint": "sha-256=:Qm9HMC25CiwhR/SGuoq8PkLBexHyDIsb7J7tqUETc2z=:",
+  "scope": "main",
+  "version": "1.0.0",
+  "configuration": "cfg-2026-11",
+  "expires_at": "2026-11-06T08:40:12Z",
+  "links": [
+    {
+      "url": "https://example.com/q3/report.pdf",
+      "text": "Full report",
+      "kind": "file",
+      "external": false,
+      "block_id": "b12",
+      "section_id": "s3"
+    }
+  ],
+  "notices": [],
+  "request_id": "req_01Jp0SRsqpJGQ9hFdqVC27"
+}
+```
+
+A link's `kind` is one of `page`, `file`, `fragment`, `mail`, `phone`, `feed` and `other`. It is read from the address, so it is a guess: no request is made per link, and a link carries no size or served type. `external=true` keeps the links that leave the final URL's registrable domain, and `external=false` those that stay.
+
+## Find a passage
+
+`highlight_contents` finds and marks passages or questions in the held record, exactly as a fetch's `highlights` does, without fetching again.
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.getclean.ai/v1/contents/cnt_3Fk9abaUhNX7t2eKkgfd3e:highlight \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY" \
+  -H "Idempotency-Key: highlight-q3-2026-11-04" \
+  -H "Content-Type: application/json" \
+  -d '{"highlights": ["Revenue rose 12%", "dividend policy"], "max_characters": 0}'
+```
+
+```python Python
+found = client.highlight_contents(
+    "cnt_3Fk9abaUhNX7t2eKkgfd3e",
+    highlights=["Revenue rose 12%", "dividend policy"],
+    max_characters=0,
+)
+
+print(found.highlights[0].block_id)  # b3
+print(found.notices[0].code)         # highlight_not_found
+```
+
+```typescript TypeScript
+const found = await client.highlightContents("cnt_3Fk9abaUhNX7t2eKkgfd3e", {
+  highlights: ["Revenue rose 12%", "dividend policy"],
+  max_characters: 0,
+});
+
+console.log(found.highlights[0].block_id); // b3
+console.log(found.notices[0].code);        // highlight_not_found
+```
+
+```java Java
+// To be confirmed against the generated Java SDK, ai.getclean:getclean.
+```
+
+```go Go
+// To be confirmed against the generated Go SDK, github.com/deterministic-labs/getclean-go.
+```
+
+```csharp title="C#"
+// To be confirmed against the generated C# SDK, GetClean on NuGet.
+```
+
+</CodeGroup>
+
+```json title="200 OK"
+{
+  "contents_id": "cnt_3Fk9abaUhNX7t2eKkgfd3e",
+  "final_url": "https://example.com/q3",
+  "fetched_at": "2026-11-04T08:40:12Z",
+  "fingerprint": "sha-256=:Qm9HMC25CiwhR/SGuoq8PkLBexHyDIsb7J7tqUETc2z=:",
+  "scope": "main",
+  "version": "1.0.0",
+  "configuration": "cfg-2026-11",
+  "expires_at": "2026-11-06T08:40:12Z",
+  "highlights": [
+    {
+      "id": "h1",
+      "query_index": 0,
+      "text": "Revenue rose 12%",
+      "basis": "exact",
+      "section_id": "s1",
+      "block_id": "b3"
+    }
+  ],
+  "formats": [],
+  "truncated": false,
+  "execution": {
+    "version": "1.0.0",
+    "configuration": "cfg-2026-11",
+    "models": [
+      {
+        "step": "highlights",
+        "version": "hl-2026-10"
+      }
+    ],
+    "elapsed_seconds": 1.4
+  },
+  "cost": {
+    "ceiling": {
+      "amount": "0.0020",
+      "currency": "USD"
+    },
+    "actual": {
+      "amount": "0.0020",
+      "currency": "USD"
+    },
+    "units": {
+      "model_steps": 1
+    },
+    "replayed": false
+  },
+  "notices": [
+    {
+      "code": "highlight_not_found",
+      "message": "No block bears on the string.",
+      "field": "highlights",
+      "pointer": "/highlights/1"
+    }
+  ],
+  "request_id": "req_01JIuousU3aZV7sHAB3vEy"
+}
+```
+
+The first string stands in block `b3` of section `s1`, word for word, so it was free. The second, "dividend policy", does not stand in the text, so a model looked for the blocks that bear on it and found none: the notice `highlight_not_found` points at `/highlights/1`, and the model step is billed once. With `max_characters` above `0`, the answer also carries the sections that hold the highlights, with the marks in place; `get_section`, or `list_blocks` with `block_ids`, reads the rest. A billed answer is replayed under the same `Idempotency-Key` for 24 hours; a free answer is not stored.
+
+<Note>The amounts in these answers are example figures, not GetClean's prices.</Note>
+
+## See the whole page, not only the main content
+
+A record fetched under `scope: main` also holds the whole page of the same capture. `get_contents` with `scope=whole_page` returns it, free. In that view the counts cover the page, `left_out` is empty, and the section and block ids are the whole page's own. The record's fingerprint stays that of the view the fetch ran under, `record_scope`. A document record has one view, so asking it for `whole_page` gives the notice `field_not_applicable`.
+
+## When the hold has ended
+
+After the hold, a read is answered `410 contents-expired`, and its `change` names `fetch_contents` and `url`: fetch the page again. [Records and the hold](/understand/records-and-the-hold) shows the timeline.
+
+<Note>Every Python and TypeScript form on this page is to be confirmed against the generated SDKs, as are all Java, Go and C# forms.</Note>

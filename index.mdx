@@ -1,0 +1,130 @@
+---
+title: "GetClean: the data layer for research agents"
+sidebarTitle: "Introduction"
+description: "GetClean reads a page or a document as a person sees it, holds one record of it, and answers every later question from that copy, outcome first."
+keywords:
+  - "GetClean"
+  - "research agents"
+  - "web extraction API"
+  - "search API"
+  - "MCP server"
+  - "held record"
+---
+
+GetClean gives a research agent two kinds of call. The first fetches a web page or a document as a person sees it and holds the record, so every later question about it is answered from the same copy. The second runs one question across the web and named sources and returns the leads with the facts of each, before any page is read. Every answer says first what happened, then what it cost.
+
+## One call, read from the top
+
+This call fetches a quarterly report, marks two passages in it and writes a summary.
+
+```bash cURL
+curl https://api.getclean.ai/v1/contents \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/q3", "highlights": ["Revenue rose 12%", "what drove the margin"], "summary": true}'
+```
+
+The answer is the record. Seven of its members are shown here, in the order GetClean sends them. The [quickstart](/quickstart) shows the whole answer.
+
+```json title="201 Created"
+{
+  "id": "cnt_3Fk9abaUhNX7t2eKkgfd3e",
+  "outcome": {
+    "kind": "delivered",
+    "reason": "whole"
+  },
+  "notices": [],
+  "highlights": [
+    {
+      "id": "h1",
+      "query_index": 0,
+      "text": "Revenue rose 12%",
+      "basis": "exact",
+      "section_id": "s1",
+      "block_id": "b3"
+    },
+    {
+      "id": "h2",
+      "query_index": 1,
+      "text": "Margin expanded on lower input costs and mix.",
+      "basis": "judged",
+      "section_id": "s2",
+      "block_id": "b9"
+    }
+  ],
+  "summary": "Revenue rose 12% in the quarter, driven by volume in Europe; margin expanded on lower input costs and mix; guidance was raised.",
+  "cost": {
+    "ceiling": { "amount": "0.0500", "currency": "USD" },
+    "actual": { "amount": "0.0090", "currency": "USD" },
+    "units": { "contents": 1, "model_steps": 2 },
+    "replayed": false
+  },
+  "expires_at": "2026-11-06T08:40:12Z"
+}
+```
+
+`outcome` comes first and says what happened: `delivered`, for the reason `whole`. The first string stands in the page word for word, so its `basis` is `exact`. The second is a question, so a model picked the block that bears on it, and its `basis` is `judged`. `cost` is the bill of this call: one `contents` unit for the fetch and two `model_steps`, one for the judged string and one for the summary. The record is held until `expires_at`, 48 hours after the last call on it.
+
+<Note>
+  The amounts in these answers are example figures, not GetClean's prices.
+</Note>
+
+## Two families of calls
+
+| Family | What it does | Start with |
+| --- | --- | --- |
+| Contents | Takes one source, a web page or a document, fetched or uploaded, and answers every question about it afterwards from one held record. | [Fetch a page](/guides/fetch-a-page), [Read a held record](/guides/read-a-held-record) |
+| Search | The step before the fetch: one question in up to twenty wordings, run live on up to ten datasources, the leads returned with the facts of each and a receipt of what ran where. | [Search](/guides/search) |
+
+The API has 22 operations under `/v1`: 16 in the contents family, 5 in the search family, and `get_limits`, which reads your key's limits and your account's money in one answer.
+
+## What every answer promises
+
+<Columns cols={2}>
+  <Card title="A failed page is a record" href="/understand/how-an-answer-reads">
+    A page that will not load comes back as a record, `201 Created`. Its outcome says why and what may work next, and it bills nothing.
+  </Card>
+
+  <Card title="Reading a held record is free" href="/guides/read-a-held-record">
+    The text, the map, one section, the blocks and the links of a record cost nothing to read again, for as long as it is held.
+  </Card>
+
+  <Card title="Nothing is cut in silence" href="/guides/search">
+    Every cut is a notice. Every source left out is a coverage gap. Every result a search dropped is counted with its reason.
+  </Card>
+
+  <Card title="Same page, same record" href="/understand/records-and-the-hold">
+    Under one engine version and one configuration, the same painted page gives the same content and the same section and block ids.
+  </Card>
+</Columns>
+
+## Where GetClean answers
+
+| Surface | Address or package | Read |
+| --- | --- | --- |
+| HTTP API | `https://api.getclean.ai`, 22 operations under `/v1` | [API reference](/api-reference/overview) |
+| SDKs | `getclean` for Python and TypeScript, `ai.getclean:getclean` for Java, `github.com/deterministic-labs/getclean-go` for Go, `GetClean` for C# | [SDKs](/sdks/overview) |
+| MCP server | `https://mcp.getclean.ai/mcp` | [MCP server](/agents/mcp-server) |
+| Command line | `getclean` | The command line follows, and its pages come with it. |
+
+The contract behind all of them is one OpenAPI 3.1 file, published at `https://api.getclean.ai/openapi.yaml` at launch. The SDKs are generated from it.
+
+## Start here
+
+<Columns cols={2}>
+  <Card title="Quickstart" href="/quickstart">
+    One call that fetches a page, marks two passages and writes a summary, then a free read of the same record.
+  </Card>
+
+  <Card title="The research loop" href="/guides/the-research-loop">
+    Search a question, find where a record says it, read that section, fetch the next lead.
+  </Card>
+
+  <Card title="Authentication" href="/authentication">
+    The header every call carries, the nine scopes, and what a `401` and a `403` say.
+  </Card>
+
+  <Card title="Connect an agent" href="/agents/mcp-server">
+    One MCP address that carries the research loop in eight tools.
+  </Card>
+</Columns>

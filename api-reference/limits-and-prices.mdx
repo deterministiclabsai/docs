@@ -1,0 +1,148 @@
+---
+title: "Limits, prices and money for a key"
+sidebarTitle: "Limits and prices"
+description: "GET /v1/limits returns a key's balance, unit prices, cap, budgets, rate and published bounds, free. How a call's cost is counted, capped and refused."
+keywords: ["get_limits", "prices", "max_cost", "balance", "budget", "call_cap", "rate limit", "bounds"]
+---
+
+One free call, `GET /v1/limits`, returns what your key may spend and do: the prepaid balance, every unit's price, the key's cap on one call and its budgets, its rate, the published bounds of both families, and the versions served. There is no estimate operation: `max_cost` is the protection, and `prices` gives every unit's price.
+
+<Note>
+The prices, balances, rates and costs on this page are the contract's own examples. They show the shape of the answer, not a price list. Your figures are the ones your own call returns.
+</Note>
+
+## The call
+
+```bash
+curl https://api.getclean.ai/v1/limits \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY"
+```
+
+The answer below is cut to its money and rate members. [Get limits](/api-reference/get-limits) shows it whole.
+
+```json
+{
+  "balance": {"amount": "42.1000", "currency": "USD"},
+  "usage": {
+    "starts_at": "2026-11-01T00:00:00Z",
+    "ends_at": "2026-12-01T00:00:00Z",
+    "units": {"contents": 1840, "model_steps": 212, "searches": 96},
+    "spent": {"amount": "17.9000", "currency": "USD"}
+  },
+  "prices": {
+    "contents": {"amount": "0.0050", "currency": "USD"},
+    "model_steps": {"amount": "0.0020", "currency": "USD"},
+    "screenshots": {"amount": "0.0010", "currency": "USD"},
+    "document_pages": {"amount": "0.0010", "currency": "USD"},
+    "recognized_pages": {"amount": "0.0050", "currency": "USD"},
+    "searches": {"amount": "0.0100", "currency": "USD"},
+    "datasource_queries": {"amount": "0.0010", "currency": "USD"}
+  },
+  "caps": {"call_cap": {"amount": "0.0500", "currency": "USD"}},
+  "rates": {"requests_per_minute": 600, "concurrency": 20, "resets_at": "2026-11-05T09:01:00Z"},
+  "request_id": "req_01ZWyyr8KwLQuLkEAedYvD"
+}
+```
+
+The answer carries `Cache-Control: no-store`, since it is the key's own.
+
+## What the answer holds
+
+| Member | What it holds |
+|---|---|
+| `balance` | Prepaid credit left after the sums reserved by calls in flight. |
+| `usage` | The account's use in its current period: `starts_at`, `ends_at`, a count per unit in `units`, and what the use cost in `spent`. |
+| `prices` | Every unit's price, keyed by unit name. |
+| `caps` | `call_cap`, the key's cap on one call and the default `max_cost`. `run_budget`, what is left of the default run's budget, when it has one. `key_budget`, when the owner set one, with its `amount`, its `period` and what the period has `spent`. |
+| `rates` | Requests allowed per minute, calls allowed in flight at once, and when the minute's window resets. One rate covers every operation. |
+| `bounds` | The published bounds of both families, for request fields and for the service itself. |
+| `document_media_types` | The media types the upload and a document at a URL take. |
+| `exits` | The countries `subject_country` may name on a fetch, ISO 3166-1 alpha-2. |
+| `default_exit` | The exit a fetch uses when it names none. |
+| `recognition_languages` | The languages the recognizer takes, BCP 47. Another is refused `not_allowed`. |
+| `archives` | The archives an as-of fetch consults. |
+| `policy` | The key's switches and floors, set by the account owner. |
+| `versions` | Every version served, with its release and, once announced, its retirement. |
+| `current_version` | The version a request without `pinned_version` runs under. |
+| `version_minimum_days` | The least days a version and its configuration are served after their change notice. |
+
+## How a call is priced
+
+A call is billed in units. Its answer's `cost.units` counts them, and `cost.actual` is what was billed. The unit names are `contents`, `model_steps`, `screenshots`, `document_pages`, `recognized_pages`, `searches` and `datasource_queries`.
+
+In the contract's examples, the units times the example prices give each `cost.actual`:
+
+| Example call | Units | `cost.actual` |
+|---|---|---|
+| A page fetched with two highlights and a summary | 1 `contents`, 2 `model_steps` | `0.0090` USD |
+| A ten-page PDF uploaded and parsed whole | 1 `contents`, 10 `document_pages` | `0.0150` USD |
+| A 312-page document, 41 pages into its job | 1 `contents`, 41 `document_pages`, 3 `recognized_pages` | `0.0610` USD |
+| A search with its first lead fetched | 1 `searches`, 1 `datasource_queries`, 2 `model_steps`, 1 `contents` | `0.0200` USD |
+
+The first row, worked:
+
+```text
+contents      1 x 0.0050 = 0.0050
+model_steps   2 x 0.0020 = 0.0040
+cost.actual                0.0090
+```
+
+Each operation's page states its price under Scope and price. For the calls above:
+
+| Operation | Price |
+|---|---|
+| `fetch_contents` | 1 `contents`, plus `document_pages` and `recognized_pages` when the URL serves a document, plus `model_steps` per model field that ran, plus `screenshots`. An `unchanged` answer bills the same 1 `contents`. |
+| `upload_contents` | 1 `contents`, plus `document_pages` and `recognized_pages`, plus `model_steps` per model field, billed when the record becomes final. |
+| `search` | 1 `searches`, 1 `datasource_queries` per source per wording that ran, 1 `model_steps` for the reranker and 1 for the discovery when they ran, plus the inline fetches priced as `fetch_contents`. A reranker cut by the deadline is not billed. |
+| `get_contents` | Free. |
+| `get_limits` | Free. |
+
+## The ceiling on one call
+
+Every call that can bill runs under a ceiling: the lowest of the request's `max_cost`, the key's cap, the run's budget, the key's budget and the balance. The answer's `cost.ceiling` shows the ceiling applied.
+
+`max_cost` is reserved at the start. On a fetch, the money goes first to the render or the pages, then to `json_schema`, `highlights`, `summary` and `screenshot`. A cap, a budget or the deadline that cannot cover everything cuts from the end, and each cut is a notice naming the field.
+
+Three refusals guard the money:
+
+| Problem | When |
+|---|---|
+| `422 cost-exceeds-cap` | The request's `max_cost` is below the plain call's price. `minimum_cap` gives that price. |
+| `403 credit-exhausted` | The balance cannot pay for the plain call. `amount_needed` and `funding_url` come with it. |
+| `403 run-budget-exhausted`, `403 key-budget-exhausted` | The run's or the key's budget cannot pay for the plain call. |
+
+`amount_needed` is the plain call's price less what the binding limit holds. A balance of `0.0020` against a fetch priced `0.0050` gives an `amount_needed` of `0.0030`. [Problems](/api-reference/problems) has the fix for each.
+
+## Rates
+
+`rates.requests_per_minute` and `rates.concurrency` are the key's limits, one rate for every operation. The `RateLimit` and `RateLimit-Policy` headers carry the same figures on every answer but a `401`. A call past either limit gets `429`, `rate-limit-exceeded` or `concurrency-limit-exceeded`, with `Retry-After`. [Headers](/api-reference/headers) shows the header form.
+
+## Bounds
+
+Each bound gives `min`, `max` and `default_value`, and `excluded_min` with `excluded_max` for a gap in the range. A request field is keyed by its name for the bound most operations share, and as `<operation>.<field>` for an operation whose bound differs.
+
+```json
+{
+  "max_characters": {"min": 0, "max": 1000000, "default_value": 20000, "excluded_min": 1, "excluded_max": 999},
+  "list_blocks.max_characters": {"min": 1000, "max": 1000000, "default_value": 20000}
+}
+```
+
+Read it this way: `max_characters` takes `0`, or 1,000 to 1,000,000, and defaults to 20,000. A value from 1 to 999 is refused. `list_blocks` has its own bound, from 1,000.
+
+## The key's policy
+
+The account owner sets the key's policy, and a request never loosens it. A request looser than the policy gets `403 policy-limit-exceeded`.
+
+| Member | What it does |
+|---|---|
+| `deterministic_only` | When true, the policy forbids model work, and every call runs as if it sent `deterministic_only` true, with the notice `default_set_by_policy`. |
+| `safe_search` | The floor a search's `safe_search` may not go below. |
+| `retention` | The account's mode, `hold` on a new account. A request may shorten it to `none`, never lengthen it. |
+| `allowed_domains` | The hosts a fetch may reach and a search may count, with every redirect hop. `[]` when none is set. |
+| `blocked_domains` | The hosts a fetch never reaches and a search never counts. `[]` when none is set. |
+| `refuse_credential_urls` | When true, a URL whose query carries a parameter named `token`, `key`, `password`, `session`, `auth`, `sig` or `signature`, or any userinfo, is refused before work. Off by default. |
+
+## Versions
+
+`versions` lists every version served, each with `released_at`, its `changes_url` and, once announced, `retires_at`. [Versions](/api-reference/versions) explains pinning a version and how a retirement is announced.

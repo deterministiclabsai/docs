@@ -1,0 +1,446 @@
+---
+title: "The research loop: search, find, read, fetch again"
+sidebarTitle: "Research loop"
+description: "Run the loop an agent uses with GetClean: search a question, find where a record says it, read that section for free, then fetch the next lead."
+keywords: ["research loop", "agentic research", "search", "highlight_contents", "get_section", "fetch_contents", "MCP"]
+---
+
+Research with GetClean runs as a loop of four calls. You search a question and get leads with their facts, find where a held record says what you need, read only that section, and fetch the next lead when the first is not enough. Reading a held record is free, so the loop pays for searching, fetching and model work, never for reading.
+
+Step through the loop, then read each call below with its answer.
+
+<Visibility for="humans">
+  <ResearchLoop />
+</Visibility>
+
+## 1. Search the question
+
+Send the question with `contents.top: 1`, and GetClean fetches the first lead in the same call.
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.getclean.ai/v1/search \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "EU AI Act article 50 marking obligations", "published_within_days": 365, "max_candidates": 3, "contents": {"top": 1, "max_characters": 8000}, "max_cost": {"amount": "0.1000", "currency": "USD"}}'
+```
+
+```python Python
+from getclean import GetClean, Money, SearchContentsOptions
+
+client = GetClean()
+
+result = client.search(
+    query="EU AI Act article 50 marking obligations",
+    published_within_days=365,
+    max_candidates=3,
+    contents=SearchContentsOptions(top=1, max_characters=8000),
+    max_cost=Money(amount="0.1000", currency="USD"),
+)
+
+lead = result.candidates[0]
+print(lead.contents.id)                 # cnt_8Lq5XFriyaJ0jEc2oPNx6E
+print(lead.contents.sections[1].title)  # Article 50
+```
+
+```typescript TypeScript
+import { GetClean } from "getclean";
+
+const client = new GetClean({ apiKey: process.env.GETCLEAN_API_KEY });
+
+const result = await client.search({
+  query: "EU AI Act article 50 marking obligations",
+  published_within_days: 365,
+  max_candidates: 3,
+  contents: { top: 1, max_characters: 8000 },
+  max_cost: { amount: "0.1000", currency: "USD" },
+});
+
+const lead = result.candidates[0];
+console.log(lead.contents?.id);                  // cnt_8Lq5XFriyaJ0jEc2oPNx6E
+console.log(lead.contents?.sections?.[1].title); // Article 50
+```
+
+```json MCP
+{"method": "tools/call", "params": {"name": "search", "arguments": {"query": "EU AI Act article 50 marking obligations", "published_within_days": 365, "max_candidates": 3, "contents": {"top": 1, "max_characters": 8000}}}}
+```
+
+```java Java
+// To be confirmed against the generated Java SDK, ai.getclean:getclean.
+```
+
+```go Go
+// To be confirmed against the generated Go SDK, github.com/deterministic-labs/getclean-go.
+```
+
+```csharp title="C#"
+// To be confirmed against the generated C# SDK, GetClean on NuGet.
+```
+
+</CodeGroup>
+
+GetClean answers `201 Created` with the search record. The answer below keeps the members this loop uses and the first of its three leads. The [search guide](/guides/search) shows it whole.
+
+```json title="201 Created, selected members"
+{
+  "id": "srch_4HmUunqCCXquleKVCosqFG",
+  "outcome": {
+    "kind": "delivered",
+    "reason": "candidates"
+  },
+  "notices": [],
+  "coverage_gaps": [],
+  "candidates": [
+    {
+      "id": "cand_a1dYqVUaEDEMqh7Qgn8yip",
+      "url": "https://eur-lex.example/ai-act",
+      "title": "Regulation (EU) 2024/1689",
+      "source_profile": {
+        "kind": "state",
+        "role": "primary",
+        "independence": "unknown",
+        "review": {
+          "kind": "none",
+          "by": null
+        }
+      },
+      "copy_count": 2,
+      "published_date": "2024-07-12",
+      "relevance_score": 0.93,
+      "contents": {
+        "id": "cnt_8Lq5XFriyaJ0jEc2oPNx6E",
+        "outcome": {
+          "kind": "delivered",
+          "reason": "sections_only"
+        },
+        "truncated": true,
+        "counts": {
+          "characters": 9500,
+          "blocks": {
+            "heading": 3,
+            "text": 18
+          },
+          "links": {
+            "page": 12
+          }
+        },
+        "sections": [
+          {
+            "id": "s0",
+            "title": null,
+            "level": 0,
+            "characters": 400,
+            "basis": "structure"
+          },
+          {
+            "id": "s4",
+            "title": "Article 50",
+            "level": 2,
+            "characters": 9100,
+            "basis": "structure"
+          }
+        ],
+        "expires_at": "2026-11-07T09:00:03Z"
+      }
+    }
+  ],
+  "counts": {
+    "returned": 3,
+    "found": 41,
+    "dropped": {
+      "not_relevant": 30,
+      "undated": 0,
+      "max_per_domain": 0,
+      "blocked_domain": 0,
+      "outside_allowed": 0,
+      "source_kind": 0,
+      "source_independence": 0,
+      "folded_copy": 8,
+      "phrase_check": 0,
+      "exclusion_check": 0,
+      "beyond_max_candidates": 0
+    }
+  },
+  "end_reason": "relevance",
+  "cost": {
+    "ceiling": {
+      "amount": "0.1000",
+      "currency": "USD"
+    },
+    "actual": {
+      "amount": "0.0200",
+      "currency": "USD"
+    },
+    "units": {
+      "searches": 1,
+      "datasource_queries": 1,
+      "model_steps": 2,
+      "contents": 1
+    },
+    "replayed": false
+  },
+  "expires_at": "2026-11-07T09:00:03Z"
+}
+```
+
+The outcome is `delivered`, and `coverage_gaps` is empty, so nothing you asked for went unsearched. The first lead, "Regulation (EU) 2024/1689", is a primary source: its publisher's kind is `state`, its role `primary`, and two copies of its text on other sites are folded behind it. Its page came fetched. The text, 9,500 characters, passed the 8,000 you allowed, so the record came as its map, `sections_only`, and the map names section `s4`, "Article 50", at 9,100 characters.
+
+On the MCP server, a search answers with the compact view of its record.
+
+## 2. Find where the record says it
+
+Ask the held record where it speaks of a machine-readable format. `max_characters: 0` asks for the places only, no text.
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.getclean.ai/v1/contents/cnt_8Lq5XFriyaJ0jEc2oPNx6E:highlight \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"highlights": ["machine-readable format"], "max_characters": 0}'
+```
+
+```python Python
+found = client.highlight_contents(
+    lead.contents.id,
+    highlights=["machine-readable format"],
+    max_characters=0,
+)
+
+for place in found.highlights:
+    print(place.section_id, place.block_id, place.basis)
+```
+
+```typescript TypeScript
+const found = await client.highlightContents(lead.contents!.id, {
+  highlights: ["machine-readable format"],
+  max_characters: 0,
+});
+
+for (const place of found.highlights) {
+  console.log(place.section_id, place.block_id, place.basis);
+}
+```
+
+```json MCP
+{"method": "tools/call", "params": {"name": "highlight_contents", "arguments": {"contents_id": "cnt_8Lq5XFriyaJ0jEc2oPNx6E", "highlights": ["machine-readable format"], "max_characters": 0}}}
+```
+
+```java Java
+// To be confirmed against the generated Java SDK, ai.getclean:getclean.
+```
+
+```go Go
+// To be confirmed against the generated Go SDK, github.com/deterministic-labs/getclean-go.
+```
+
+```csharp title="C#"
+// To be confirmed against the generated C# SDK, GetClean on NuGet.
+```
+
+</CodeGroup>
+
+The answer is `200`. Its `highlights` list gives each place where the record says it: the section, the block, the words as found, and how they were found. No text comes, and `formats` is `[]`. A string that stands in the text word for word, `exact` or `near`, is free. A string a model has to judge costs one model step, once per call however many strings needed it. A string found nowhere comes back as the notice `highlight_not_found`, never as an error. [Read a held record](/guides/read-a-held-record#find-a-passage) shows a whole answer of `highlight_contents`.
+
+## 3. Read that section
+
+Read section `s4` from the held record, up to 8,000 characters.
+
+<CodeGroup>
+
+```bash cURL
+curl "https://api.getclean.ai/v1/contents/cnt_8Lq5XFriyaJ0jEc2oPNx6E/sections/s4?max_characters=8000" \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY"
+```
+
+```python Python
+section = client.get_section(lead.contents.id, "s4", max_characters=8000)
+
+print(section.truncated)  # True: s4 holds 9,100 characters
+```
+
+```typescript TypeScript
+const section = await client.getSection(lead.contents!.id, "s4", { max_characters: 8000 });
+
+console.log(section.truncated); // true: s4 holds 9,100 characters
+```
+
+```json MCP
+{"method": "tools/call", "params": {"name": "get_section", "arguments": {"contents_id": "cnt_8Lq5XFriyaJ0jEc2oPNx6E", "section_id": "s4", "max_characters": 8000}}}
+```
+
+```java Java
+// To be confirmed against the generated Java SDK, ai.getclean:getclean.
+```
+
+```go Go
+// To be confirmed against the generated Go SDK, github.com/deterministic-labs/getclean-go.
+```
+
+```csharp title="C#"
+// To be confirmed against the generated C# SDK, GetClean on NuGet.
+```
+
+</CodeGroup>
+
+The map said `s4` holds 9,100 characters, more than the 8,000 asked, so this answer is cut and says so with `truncated: true`. When the section has subsections, the answer carries the section's own text before the first of them, and their rows, which you read by their own ids. When it has none, the text is cut at a block edge, and `next_page_token` continues it. The call is free, nothing is fetched again, and the record's hold moves to 48 hours after it.
+
+## 4. Fetch the next lead
+
+When the first lead is not enough, fetch the second. `max_characters: 0` asks for the map and the facts, no text yet.
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.getclean.ai/v1/contents \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://commentary.example/ai-act-50", "max_characters": 0}'
+```
+
+```python Python
+record = client.fetch_contents(url=result.candidates[1].url, max_characters=0)
+
+print(record.outcome.kind)
+```
+
+```typescript TypeScript
+const record = await client.fetchContents({
+  url: result.candidates[1].url,
+  max_characters: 0,
+});
+
+console.log(record.outcome.kind);
+```
+
+```json MCP
+{"method": "tools/call", "params": {"name": "fetch_contents", "arguments": {"url": "https://commentary.example/ai-act-50", "max_characters": 0}}}
+```
+
+```java Java
+// To be confirmed against the generated Java SDK, ai.getclean:getclean.
+```
+
+```go Go
+// To be confirmed against the generated Go SDK, github.com/deterministic-labs/getclean-go.
+```
+
+```csharp title="C#"
+// To be confirmed against the generated C# SDK, GetClean on NuGet.
+```
+
+</CodeGroup>
+
+The record comes back with its id and its map, the sections with their ids and sizes, for one `contents` unit. Run steps 2 and 3 on it. A page that will not load is a record too, and its `outcome.message` says what may work next.
+
+<Note>The Python and TypeScript forms of `highlight_contents` and `get_section` on this page, and the import of `Money` and `SearchContentsOptions` from the package root, are to be confirmed against the generated SDKs, as are all Java, Go and C# forms.</Note>
+
+## What the loop billed
+
+| Call | What it billed |
+|---|---|
+| `search`, first lead fetched in the same call | 1 `searches`, 1 `datasource_queries`, 2 `model_steps` for the reranker and the discovery of datasources, 1 `contents` for the fetched lead |
+| `highlight_contents` | Nothing when the words stand in the text; 1 `model_steps` when a model had to judge |
+| `get_section` | Nothing |
+| `fetch_contents` of the next lead | 1 `contents` |
+
+Every later read of these records is free. Each record is held 48 hours after its last call and at most 30 days, as [Records and the hold](/understand/records-and-the-hold) explains.
+
+<Note>The amounts in these answers are example figures, not GetClean's prices.</Note>
+
+export const ResearchLoop = () => {
+  const steps = [
+    {
+      tool: "search",
+      title: "Search the question",
+      call: "query: \"EU AI Act article 50 marking obligations\", published_within_days: 365, max_candidates: 3, contents: { top: 1, max_characters: 8000 }",
+      back: [
+        "Three leads in rank order, each with who publishes it, when it was published and what it demands.",
+        "A receipt of what ran where: the web, one wording, 41 results found.",
+        "The first lead fetched in the same call, record cnt_8Lq5XFriyaJ0jEc2oPNx6E, with its map: s0 at 400 characters and s4, \"Article 50\", at 9,100.",
+      ],
+      bills: "1 searches, 1 datasource_queries, 2 model_steps for the reranker and the discovery, 1 contents for the fetched lead.",
+      free: false,
+    },
+    {
+      tool: "highlight_contents",
+      title: "Find where it says it",
+      call: "contents_id: cnt_8Lq5XFriyaJ0jEc2oPNx6E, highlights: [\"machine-readable format\"], max_characters: 0",
+      back: [
+        "Where the record says it: the section and the block, with no text yet.",
+        "A string found nowhere is the notice highlight_not_found, never an error.",
+      ],
+      bills: "Nothing when the words stand in the text. 1 model_steps when a model had to judge.",
+      free: false,
+    },
+    {
+      tool: "get_section",
+      title: "Read that section",
+      call: "contents_id: cnt_8Lq5XFriyaJ0jEc2oPNx6E, section_id: s4, max_characters: 8000",
+      back: [
+        "The text of s4, from the held record. Nothing is fetched again.",
+        "s4 holds 9,100 characters, more than 8,000, so the answer is cut and says so: truncated is true.",
+      ],
+      bills: "Nothing. Reading a held record is free.",
+      free: true,
+    },
+    {
+      tool: "fetch_contents",
+      title: "Fetch the next lead",
+      call: "url: https://commentary.example/ai-act-50, max_characters: 0",
+      back: [
+        "A new record with its id and its map, no text yet. Then steps 2 and 3 on it.",
+        "A page that will not load is a record too, and outcome.message says what may work next.",
+      ],
+      bills: "1 contents.",
+      free: false,
+    },
+  ];
+  const [active, setActive] = useState(0);
+  const step = steps[active];
+  const line = "1px solid rgba(127,127,127,.35)";
+  const mono = { fontFamily: "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace", fontWeight: 400 };
+  const caption = { fontSize: 12, opacity: 0.7, margin: "0 0 4px" };
+  const nav = { padding: "6px 14px", border: line, borderRadius: 0, background: "transparent", color: "inherit", font: "inherit", cursor: "pointer" };
+  return (
+    <div className="not-prose" style={{ border: line, borderRadius: 0, padding: 20, display: "grid", gap: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
+        {steps.map((s, i) => (
+          <button
+            key={s.tool}
+            type="button"
+            aria-pressed={i === active}
+            onClick={() => setActive(i)}
+            style={{ textAlign: "left", padding: "10px 12px", borderRadius: 0, background: "transparent", color: "inherit", font: "inherit", cursor: "pointer", minWidth: 0, border: i === active ? "1px solid currentColor" : line, opacity: i === active ? 1 : 0.65 }}
+          >
+            <div style={{ fontSize: 12, opacity: 0.7 }}>Step {i + 1}</div>
+            <div style={{ fontWeight: 500 }}>{s.title}</div>
+            <div style={{ ...mono, fontSize: 12, overflowWrap: "anywhere" }}>{s.tool}</div>
+          </button>
+        ))}
+      </div>
+      <div style={{ display: "grid", gap: 14 }}>
+        <div>
+          <p style={caption}>The call</p>
+          <code style={{ ...mono, fontSize: 13, overflowWrap: "anywhere" }}>{step.tool}({step.call})</code>
+        </div>
+        <div>
+          <p style={caption}>What comes back</p>
+          {step.back.map((text) => (
+            <p key={text} style={{ margin: "4px 0", fontSize: 14 }}>{text}</p>
+          ))}
+        </div>
+        <div>
+          <p style={caption}>What it bills</p>
+          <p className={step.free ? "text-[#005d5d] dark:text-[#3ddbd9]" : ""} style={{ margin: 0, fontSize: 14, fontWeight: step.free ? 500 : 400 }}>{step.bills}</p>
+        </div>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, borderTop: line, paddingTop: 14 }}>
+        <button type="button" style={{ ...nav, opacity: active === 0 ? 0.4 : 1 }} disabled={active === 0} onClick={() => setActive(active - 1)}>Back</button>
+        <button type="button" style={{ ...nav, opacity: active === steps.length - 1 ? 0.4 : 1 }} disabled={active === steps.length - 1} onClick={() => setActive(active + 1)}>Next</button>
+        <span style={{ fontSize: 13, opacity: 0.7, marginLeft: 8 }}>Each record is held 48 hours after its last call, at most 30 days.</span>
+      </div>
+    </div>
+  );
+};

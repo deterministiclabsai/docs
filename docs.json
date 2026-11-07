@@ -1,0 +1,318 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "luma",
+  "name": "getclean",
+  "colors": {
+    "primary": "#007D79",
+    "light": "#08BDBA",
+    "dark": "#007D79"
+  },
+  "favicon": {
+    "light": "/favicon.svg",
+    "dark": "/favicon-dark.svg"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "pages": [
+          {
+            "group": "Get started",
+            "pages": [
+              "index",
+              "quickstart",
+              "authentication"
+            ]
+          },
+          {
+            "group": "For agents",
+            "pages": [
+              "agents/mcp-server"
+            ]
+          },
+          {
+            "group": "Understand",
+            "pages": [
+              "understand/how-an-answer-reads",
+              "understand/records-and-the-hold"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/the-research-loop",
+              "guides/search",
+              "guides/fetch-a-page",
+              "guides/read-a-held-record"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API reference",
+        "groups": [
+          {
+            "group": "Using the API",
+            "pages": [
+              "api-reference/overview",
+              "api-reference/problems",
+              "api-reference/headers",
+              "api-reference/idempotency-and-retries",
+              "api-reference/limits-and-prices"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "https://getclean.ai"
+  },
+  "navbar": {
+    "links": [
+      {
+        "href": "mailto:hello@getclean.ai?subject=contact%20sales",
+        "label": "Contact sales"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Sign in",
+      "href": "https://app.getclean.ai/"
+    }
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "claude",
+      "chatgpt",
+      "perplexity"
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/deterministic-labs",
+      "website": "https://getclean.ai"
+    },
+    "links": [
+      {
+        "header": "For machines",
+        "items": [
+          {
+            "label": "llms.txt",
+            "href": "https://docs.getclean.ai/llms.txt"
+          },
+          {
+            "label": "llms-full.txt",
+            "href": "https://docs.getclean.ai/llms-full.txt"
+          },
+          {
+            "label": "openapi.yaml",
+            "href": "https://docs.getclean.ai/openapi.yaml"
+          }
+        ]
+      },
+      {
+        "header": "Write to us",
+        "items": [
+          {
+            "label": "hello@getclean.ai",
+            "href": "mailto:hello@getclean.ai"
+          }
+        ]
+      }
+    ]
+  },
+  "icons": {
+    "library": "lucide"
+  },
+  "appearance": {
+    "default": "system",
+    "strict": false
+  },
+  "interaction": {
+    "drilldown": false
+  },
+  "api": {
+    "playground": {
+      "display": "simple"
+    },
+    "examples": {
+      "languages": [
+        "bash"
+      ],
+      "prefill": false,
+      "autogenerate": true
+    }
+  },
+  "seo": {
+    "indexing": "navigable"
+  },
+  "styling": {
+    "eyebrows": "section",
+    "codeblocks": "dark",
+    "latex": false
+  },
+  "description": "GetClean is the data layer for research done by agents. It fetches a web page or a document as clean, exact text with the facts of its source, holds the record so every later question about it is answered from the same copy, and searches the web and named sources with a receipt of what ran.",
+  "search": {
+    "prompt": "Search the docs"
+  },
+  "redirects": [
+    {
+      "source": "/api-reference",
+      "destination": "/api-reference/overview"
+    },
+    {
+      "source": "/agents",
+      "destination": "/agents/mcp-server"
+    },
+    {
+      "source": "/understand",
+      "destination": "/understand/how-an-answer-reads"
+    },
+    {
+      "source": "/guides",
+      "destination": "/guides/the-research-loop"
+    },
+    {
+      "source": "/sdks",
+      "destination": "/sdks/overview"
+    },
+    {
+      "source": "/api-reference/fetch_contents",
+      "destination": "/api-reference/fetch-contents"
+    },
+    {
+      "source": "/api-reference/fetch_contents_batch",
+      "destination": "/api-reference/fetch-contents-batch"
+    },
+    {
+      "source": "/api-reference/upload_contents",
+      "destination": "/api-reference/upload-contents"
+    },
+    {
+      "source": "/api-reference/get_job",
+      "destination": "/api-reference/get-job"
+    },
+    {
+      "source": "/api-reference/list_jobs",
+      "destination": "/api-reference/list-jobs"
+    },
+    {
+      "source": "/api-reference/cancel_job",
+      "destination": "/api-reference/cancel-job"
+    },
+    {
+      "source": "/api-reference/get_contents",
+      "destination": "/api-reference/get-contents"
+    },
+    {
+      "source": "/api-reference/get_section",
+      "destination": "/api-reference/get-section"
+    },
+    {
+      "source": "/api-reference/list_blocks",
+      "destination": "/api-reference/list-blocks"
+    },
+    {
+      "source": "/api-reference/list_links",
+      "destination": "/api-reference/list-links"
+    },
+    {
+      "source": "/api-reference/list_contents",
+      "destination": "/api-reference/list-contents"
+    },
+    {
+      "source": "/api-reference/delete_contents",
+      "destination": "/api-reference/delete-contents"
+    },
+    {
+      "source": "/api-reference/highlight_contents",
+      "destination": "/api-reference/highlight-contents"
+    },
+    {
+      "source": "/api-reference/fill_schema",
+      "destination": "/api-reference/fill-schema"
+    },
+    {
+      "source": "/api-reference/summarize_contents",
+      "destination": "/api-reference/summarize-contents"
+    },
+    {
+      "source": "/api-reference/compare_contents",
+      "destination": "/api-reference/compare-contents"
+    },
+    {
+      "source": "/api-reference/get_limits",
+      "destination": "/api-reference/get-limits"
+    },
+    {
+      "source": "/api-reference/get_search",
+      "destination": "/api-reference/get-search"
+    },
+    {
+      "source": "/api-reference/search_batch",
+      "destination": "/api-reference/search-batch"
+    },
+    {
+      "source": "/api-reference/list_datasources",
+      "destination": "/api-reference/list-datasources"
+    },
+    {
+      "source": "/api-reference/get_datasource",
+      "destination": "/api-reference/get-datasource"
+    }
+  ],
+  "banner": {
+    "content": "The API is in closed early access. Early access is by mail to [hello@getclean.ai](mailto:hello@getclean.ai).",
+    "dismissible": false
+  },
+  "errors": {
+    "404": {
+      "redirect": false,
+      "title": "There is no page at this address.",
+      "description": "Search the docs, or start again from the [introduction](/)."
+    }
+  },
+  "markdown": {
+    "schema": true,
+    "instructions": [
+      "The GetClean API is at https://api.getclean.ai, every path under /v1. Every call carries Authorization: Bearer with an API key from https://app.getclean.ai or an access token from https://auth.getclean.ai/realms/getclean.",
+      "GetClean's MCP server is named getclean, at https://mcp.getclean.ai/mcp. The /mcp path of this docs site is a different server that only searches these docs.",
+      "Every GetClean answer opens with outcome. A page that could not be read is a record whose outcome says why, never an HTTP error, so read outcome before anything else.",
+      "The API's contract is the OpenAPI 3.1 file at https://docs.getclean.ai/openapi.yaml."
+    ]
+  },
+  "background": {
+    "color": {
+      "light": "#FFFFFF",
+      "dark": "#000000"
+    }
+  },
+  "fonts": {
+    "heading": {
+      "family": "IBM Plex Sans",
+      "weight": 600
+    },
+    "body": {
+      "family": "IBM Plex Sans",
+      "weight": 400
+    }
+  },
+  "thumbnails": {
+    "preset": "classic",
+    "appearance": "dark",
+    "surface": "neutral",
+    "fonts": {
+      "family": "IBM Plex Sans"
+    },
+    "eyebrow": {
+      "source": "group",
+      "style": "plain",
+      "color": "#8D8D8D"
+    }
+  }
+}

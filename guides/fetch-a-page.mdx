@@ -1,0 +1,503 @@
+---
+title: "Fetch a page or a document from a URL"
+sidebarTitle: "Fetch a page"
+description: "Fetch one page or document with fetch_contents: choose its formats and size, mark passages, read the outcome and the cost, and know what to try next."
+keywords: ["fetch_contents", "max_characters", "formats", "highlights", "summary", "json_schema", "outcome", "document"]
+---
+
+`fetch_contents` reads one page or one document at a URL as a person sees it, and holds the record. It answers `201 Created` for every outcome, so a page that would not load comes back as a record that says why, never as an error. This guide covers what you can ask for, how the text fits, what a fetch costs, and what to try when a page is not delivered.
+
+## Fetch a page
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.getclean.ai/v1/contents \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY" \
+  -H "Idempotency-Key: fetch-q3-2026-11-04" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/q3", "highlights": ["Revenue rose 12%", "what drove the margin"], "summary": true}'
+```
+
+```python Python
+from getclean import GetClean
+
+client = GetClean()
+
+record = client.fetch_contents(
+    url="https://example.com/q3",
+    highlights=["Revenue rose 12%", "what drove the margin"],
+    summary=True,
+    idempotency_key="fetch-q3-2026-11-04",
+)
+
+print(record.outcome.kind)           # delivered
+print(record.highlights[1].basis)    # judged
+print(record.cost.actual.amount)     # 0.0090
+```
+
+```typescript TypeScript
+import { GetClean } from "getclean";
+
+const client = new GetClean({ apiKey: process.env.GETCLEAN_API_KEY });
+
+const record = await client.fetchContents({
+  url: "https://example.com/q3",
+  highlights: ["Revenue rose 12%", "what drove the margin"],
+  summary: true,
+  "Idempotency-Key": "fetch-q3-2026-11-04",
+});
+
+console.log(record.outcome.kind);          // delivered
+console.log(record.highlights?.[1].basis); // judged
+console.log(record.cost?.actual.amount);   // 0.0090
+```
+
+```java Java
+// To be confirmed against the generated Java SDK, ai.getclean:getclean.
+```
+
+```go Go
+// To be confirmed against the generated Go SDK, github.com/deterministic-labs/getclean-go.
+```
+
+```csharp title="C#"
+// To be confirmed against the generated C# SDK, GetClean on NuGet.
+```
+
+</CodeGroup>
+
+The answer is the record, with `Location` naming it. The [quickstart](/quickstart#read-the-answer) reads this answer member by member.
+
+```json title="201 Created" expandable
+{
+  "id": "cnt_3Fk9abaUhNX7t2eKkgfd3e",
+  "outcome": {
+    "kind": "delivered",
+    "reason": "whole"
+  },
+  "notices": [],
+  "fetched_at": "2026-11-04T08:40:12Z",
+  "fingerprint": "sha-256=:Qm9HMC25CiwhR/SGuoq8PkLBexHyDIsb7J7tqUETc2z=:",
+  "scope": "main",
+  "record_scope": "main",
+  "formats": [
+    "markdown"
+  ],
+  "truncated": false,
+  "markdown": "# Quarterly results\n\n<mark id=\"h1\">Revenue rose 12%</mark> to … <mark id=\"h2\">Margin expanded on lower input costs and mix.</mark> …",
+  "counts": {
+    "characters": 6210,
+    "blocks": {
+      "heading": 4,
+      "text": 22,
+      "table": 1
+    },
+    "links": {
+      "page": 9
+    }
+  },
+  "highlights": [
+    {
+      "id": "h1",
+      "query_index": 0,
+      "text": "Revenue rose 12%",
+      "basis": "exact",
+      "section_id": "s1",
+      "block_id": "b3"
+    },
+    {
+      "id": "h2",
+      "query_index": 1,
+      "text": "Margin expanded on lower input costs and mix.",
+      "basis": "judged",
+      "section_id": "s2",
+      "block_id": "b9"
+    }
+  ],
+  "summary": "Revenue rose 12% in the quarter, driven by volume in Europe; margin expanded on lower input costs and mix; guidance was raised.",
+  "hidden_text": [],
+  "left_out": [
+    {
+      "kind": "navigation",
+      "characters": 1480
+    }
+  ],
+  "source": {
+    "url": "https://example.com/q3",
+    "final_url": "https://example.com/q3",
+    "redirects": [],
+    "status_code": 200,
+    "media_type": "text/html",
+    "carrier": "web",
+    "access_kind": "open",
+    "title": "Quarterly results",
+    "authors": [],
+    "published_date": "2026-10-28",
+    "published_date_precision": "day",
+    "published_date_basis": "structured_data",
+    "modified_date": null,
+    "publisher": "Example Corp",
+    "canonical_url": null,
+    "language": "en",
+    "language_versions": [],
+    "profile": {
+      "kind": "company",
+      "role": "primary",
+      "independence": "unknown",
+      "review": {
+        "kind": "none",
+        "by": null
+      }
+    },
+    "robots": "allowed",
+    "declared_terms": [],
+    "structured_data": [
+      {
+        "@type": "NewsArticle",
+        "headline": "Quarterly results"
+      }
+    ],
+    "origins": [
+      {
+        "origin": "https://cdn.example.com",
+        "kind": "script"
+      }
+    ],
+    "visitor": {
+      "country": "DE",
+      "language": "de-DE,de;q=0.9",
+      "network": "datacenter"
+    }
+  },
+  "execution": {
+    "version": "1.0.0",
+    "configuration": "cfg-2026-11",
+    "models": [
+      {
+        "step": "highlights",
+        "version": "hl-2026-10"
+      },
+      {
+        "step": "summary",
+        "version": "sum-2026-10"
+      }
+    ],
+    "elapsed_seconds": 7.1
+  },
+  "cost": {
+    "ceiling": {
+      "amount": "0.0500",
+      "currency": "USD"
+    },
+    "actual": {
+      "amount": "0.0090",
+      "currency": "USD"
+    },
+    "units": {
+      "contents": 1,
+      "model_steps": 2
+    },
+    "replayed": false
+  },
+  "retention": "hold",
+  "run_id": "run_default",
+  "expires_at": "2026-11-06T08:40:12Z",
+  "request_id": "req_01JzsALAAlsNsdoVz1EElr"
+}
+```
+
+<Note>The Java, Go and C# forms on this page are to be confirmed against the generated SDKs. The amounts in these answers are example figures, not GetClean's prices.</Note>
+
+## Choose what comes back
+
+Every field but `url` is optional. These decide what the answer carries:
+
+| Field | Default | What it does |
+|---|---|---|
+| `formats` | `["markdown"]` | The shapes returned, up to 7 of `markdown`, `html`, `doclang`, `json`, `links`, `screenshot`, `raw_html`. `[]` returns the facts only. |
+| `max_characters` | 20,000 | The most text returned, in code points. `0` returns no text, only the map and the facts; any other value is 1,000 to 1,000,000. |
+| `scope` | `main` | The view: `main`, the main content, or `whole_page`, the whole page. |
+| `block_kinds` | all kinds | Only blocks of these kinds, in every shape and every model step: `text`, `heading`, `code`, `math`, `divider`, `interactive`, `table`, `image`, `embed`, `media`. |
+| `wait_seconds` | 30 | The most seconds of work for this answer, 5 to 90, counted from the start of the work. |
+| `max_cost` | the key's cap on one call | The ceiling for this call. |
+| `retention` | the key's policy | `hold` keeps the record; `none` keeps nothing past the answer. |
+
+The main content is what the engine judges to be the page's main content, and it can cut real content as another part. `left_out` names the kinds and sizes it cut, and `get_contents` with `scope: whole_page` shows the rest of the same capture, free. The render is cut at `wait_seconds` and measured as it stands; a page still changing then carries the notice `not_settled`.
+
+## How the text fits
+
+`max_characters` bounds the text, never the facts. When the text passes the bound, you get the map of the record instead of a cut text, and you read the sections you need afterwards, free.
+
+| You send | What comes back | `outcome.reason` | `truncated` |
+|---|---|---|---|
+| `max_characters: 0` | No text. The map: the sections with their ids, titles, levels and sizes. | `whole` | `false` |
+| A bound the text fits in | The text, whole, in each format asked. | `whole` | `false` |
+| A bound the text passes | No text. The map instead. | `sections_only` | `true` |
+| A bound the text passes, a highlight found | The sections that hold a highlight, in document order, while they fit, and the map. | `matching_sections` | `true` |
+
+A value between 1 and 999 is refused before any work, `422 invalid-field`, kind `bound`. `links`, `screenshot` and `raw_html` are outside the bound. Two text formats each carry the whole content, so the answer doubles.
+
+Pick a page and a bound to see what comes back.
+
+<Visibility for="humans">
+  <TextFit />
+</Visibility>
+
+<Note>The calculator models one text format, `markdown`, the default. It leaves out the map's own bound: level 1 and `s0` always come, deeper levels come while their rows fit, and the notice `sections_cut` says when levels were left out.</Note>
+
+## Mark passages with highlights
+
+Send 1 to 5 strings in `highlights`, each a passage or a question of 1 to 4,000 characters. GetClean finds each string in one of three ways:
+
+| `basis` | How the string was found | Price |
+|---|---|---|
+| `exact` | Its words stand in one block after Unicode NFC and whitespace collapse, case kept. | Free |
+| `near` | Its words stand there after case folding, with ellipses and the punctuation at the ends of words removed. | Free |
+| `judged` | Not found word for word, so a model picked the blocks that bear on it. | 1 model step per call, however many strings needed it |
+
+A string found nowhere is the notice `highlight_not_found`, one per string. Every occurrence of a string is a highlight, in document order, at most 50 per call, and the notice `highlights_cut` says when more were found. In `markdown` and `html` each highlight is wrapped in `<mark id="h1">…</mark>`, and in blocks its id stands in `highlight_ids`. With no text returned, the `highlights` list still comes, with ids and places and no marks.
+
+Highlights need the scope `contents:model` unless you send `deterministic_only: true`, which matches strings word for word only. `exact` and `near` repeat for the same page under one engine version; a model step names its version and is not promised to repeat.
+
+## Ask a model for a summary or your schema
+
+`summary: true` asks a model for a summary of at most 1,500 characters, in the content's language, with no link and no image markup. `json_schema` fills your JSON Schema 2020-12 object from the content, with a value only where the record states it. Each is one model step and needs `contents:model`. Model work reads the whole content, or the blocks of `block_kinds`, at any `max_characters`: the bound limits what is returned, not what a model reads.
+
+`deterministic_only: true` turns off every step whose output can vary for the same input: no judged highlight, no fill, no summary. Sent together with `summary` or `json_schema`, it is refused with `422 model-work-refused`, both fields named. You can also ask a held record later, with `highlight_contents`, `fill_schema` or `summarize_contents`, without fetching again.
+
+## What a fetch costs
+
+A fetch bills 1 `contents` unit. A document adds `document_pages`, and `recognized_pages` for pages read by recognition. Each model field that ran adds `model_steps`, and a screenshot adds `screenshots`. An `unchanged` answer bills the same 1 `contents`. A record that failed, was refused or needs a person bills nothing.
+
+`max_cost` is the ceiling, reserved at the start. GetClean applies the lowest of your `max_cost`, the key's cap on one call, the run's budget, the key's budget and the balance. Work is spent in this order: the render or the pages, then `json_schema`, `highlights`, `summary` and `screenshot`. When the ceiling, a budget or the deadline cannot cover everything, GetClean cuts from the end of that order, and each cut is a notice that names the field. A `max_cost` below the price of a plain fetch is refused with `422 cost-exceeds-cap`, and `minimum_cap` gives the least cap that would run it.
+
+## When the page is not delivered
+
+A failed fetch is still a record, and its outcome says what happened:
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.getclean.ai/v1/contents \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://shop.example/offer"}'
+```
+
+```python Python
+record = client.fetch_contents(url="https://shop.example/offer")
+
+if record.outcome.kind != "delivered":
+    print(record.outcome.reason)   # challenge_served
+    print(record.outcome.message)  # what may work next
+```
+
+```typescript TypeScript
+const record = await client.fetchContents({ url: "https://shop.example/offer" });
+
+if (record.outcome.kind !== "delivered") {
+  console.log(record.outcome.reason);  // challenge_served
+  console.log(record.outcome.message); // what may work next
+}
+```
+
+```java Java
+// To be confirmed against the generated Java SDK, ai.getclean:getclean.
+```
+
+```go Go
+// To be confirmed against the generated Go SDK, github.com/deterministic-labs/getclean-go.
+```
+
+```csharp title="C#"
+// To be confirmed against the generated C# SDK, GetClean on NuGet.
+```
+
+</CodeGroup>
+
+```json title="201 Created" expandable
+{
+  "id": "cnt_7Qp2cdxxK32qkfIDrqRUE2",
+  "outcome": {
+    "kind": "failed",
+    "reason": "challenge_served",
+    "message": "A bot challenge stood where the page should be; later may work on sites that do not challenge every new visitor, or a person opens the URL and uploads the saved page with captured_url."
+  },
+  "notices": [],
+  "fetched_at": "2026-11-04T08:41:03Z",
+  "truncated": false,
+  "source": {
+    "url": "https://shop.example/offer",
+    "final_url": "https://shop.example/offer",
+    "redirects": [],
+    "status_code": 403,
+    "media_type": "text/html",
+    "carrier": "web",
+    "access_kind": "open",
+    "title": "Just a moment",
+    "authors": [],
+    "published_date": null,
+    "modified_date": null,
+    "publisher": null,
+    "canonical_url": null,
+    "language": "en",
+    "language_versions": [],
+    "profile": {
+      "kind": "marketplace",
+      "role": "primary",
+      "independence": "unknown",
+      "review": {
+        "kind": "none",
+        "by": null
+      }
+    },
+    "robots": "allowed",
+    "declared_terms": [],
+    "structured_data": [],
+    "origins": [
+      {
+        "origin": "https://challenges.example",
+        "kind": "script"
+      }
+    ],
+    "visitor": {
+      "country": "DE",
+      "language": "de-DE,de;q=0.9",
+      "network": "datacenter"
+    }
+  },
+  "execution": {
+    "version": "1.0.0",
+    "configuration": "cfg-2026-11",
+    "models": [],
+    "elapsed_seconds": 2.4
+  },
+  "cost": {
+    "ceiling": {
+      "amount": "0.0500",
+      "currency": "USD"
+    },
+    "actual": {
+      "amount": "0.0000",
+      "currency": "USD"
+    },
+    "units": {},
+    "replayed": false
+  },
+  "retention": "hold",
+  "run_id": "run_default",
+  "expires_at": "2026-11-06T08:41:03Z",
+  "request_id": "req_01KXuaBXEPybVuXmnCI9Bl"
+}
+```
+
+Challenge, block, sign-in and purchase walls are reported as outcomes. GetClean tells them apart by facts of the response or of the painted page, such as a challenge script's origin, never by words. Each reason that has a next step states it in `outcome.message`:
+
+| `outcome.reason` | What may work next |
+|---|---|
+| `dns_timeout`, `connection_refused`, `connection_timeout`, `connection_terminated`, `tls_protocol_error`, `http_response_timeout`, `http_response_incomplete`, `rate_limited`, `server_error`, `robots_unreachable` | The same call later. |
+| `challenge_served` | Later, on sites that do not challenge every new visitor; or a person opens the URL and uploads the saved page with `captured_url`. |
+| `deadline` | A larger `wait_seconds`. |
+| `cost_capped` | A larger `max_cost`, or the account owner funds the account or raises the cap. |
+| `budget_capped` | The account owner raises the budget. |
+| `payment_required` | A `max_source_price`, once payment at the request is built. Until then nothing is paid. |
+| `time_capped`, on a document at a URL | `upload_contents` with the `url`, which parses as a job. |
+| `region_restricted` | Another `subject_country`. |
+| `sign_in_needed`, `paywalled`, `password_protected` | A person. |
+| Any other reason | The same request will not work. For a legal block, another `subject_country` is never the next step. |
+
+## A document at the URL
+
+When the URL serves a document, the fetch parses it inside the call. Past `wait_seconds`, the pages already parsed come back `partial` with the reason `time_capped` and the notice `upload_to_finish`. Past `max_cost`, they come back `partial` with `cost_capped`. `pages.count` and the outline come even when no page was parsed.
+
+The price of a document is not known before the call. To learn its size and price for one `contents` unit, fetch it with `max_characters: 0` and `max_cost` at the price of a plain fetch: GetClean parses no page beyond the count and the outline. For a long document, [upload it](/guides/upload-a-document) with `upload_contents` and its `url`, which parses as a job.
+
+## Has the page changed since the last fetch?
+
+Send the `fingerprint` of an earlier record as `baseline_fingerprint`. When the page still matches, the answer is `unchanged`, with no text, and it bills as a fetch. [Records and the hold](/understand/records-and-the-hold#has-the-page-changed-the-fingerprint) explains what a fingerprint compares.
+
+## Retry without paying twice
+
+`Idempotency-Key` is optional on `fetch_contents`. The same key with the same body returns the first answer again, with this call's `request_id`, the hold's `expires_at` as it stands, and `replayed: true` on `cost`, never a second charge. The same key with another body is refused with `422 idempotency-key-reused`.
+
+export const TextFit = () => {
+  const records = [
+    { name: "Quarterly results", chars: 6210 },
+    { name: "Article 50 page", chars: 9500 },
+    { name: "Annual report 2025", chars: 61200 },
+  ];
+  const presets = [0, 1000, 8000, 20000, 200000];
+  const [pick, setPick] = useState(0);
+  const [raw, setRaw] = useState("20000");
+  const [found, setFound] = useState(false);
+  const fmt = (v) => v.toLocaleString("en-US");
+  const chars = records[pick].chars;
+  const text = raw.trim();
+  const n = Number(text);
+  let result;
+  if (!/^-?\d+$/.test(text)) {
+    result = { note: "Enter a whole number of characters." };
+  } else if (n < 0 || n > 1000000) {
+    result = { note: "Refused before any work: 422 invalid-field, kind bound. Send 0, or 1,000 to 1,000,000." };
+  } else if (n >= 1 && n <= 999) {
+    result = { note: "Refused before any work: 422 invalid-field, kind bound. A value between 1 and 999 is never accepted." };
+  } else if (n === 0) {
+    result = { reason: "whole", truncated: false, comes: found ? "No text. The map, and the highlights list with each place and no marks." : "No text. The map: the sections with their ids, titles, levels and sizes." };
+  } else if (chars <= n) {
+    result = { reason: "whole", truncated: false, comes: `The whole text, ${fmt(chars)} characters of markdown${found ? ", each highlight marked" : ""}.` };
+  } else if (found) {
+    result = { reason: "matching_sections", truncated: true, comes: `The sections that hold a highlight, in document order, while they fit in ${fmt(n)} characters, and the map. get_section reads the rest.` };
+  } else {
+    result = { reason: "sections_only", truncated: true, comes: "No text. The map instead; read the sections you need with get_section." };
+  }
+  const line = "1px solid rgba(127,127,127,.35)";
+  const mono = { fontFamily: "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace", fontWeight: 400 };
+  const caption = { fontSize: 12, opacity: 0.7, margin: "0 0 6px" };
+  const chip = (on) => ({ fontSize: 13, padding: "5px 9px", borderRadius: 0, cursor: "pointer", color: "inherit", background: "transparent", border: on ? "1px solid currentColor" : line, fontWeight: on ? 500 : 400 });
+  return (
+    <div className="not-prose" style={{ border: line, borderRadius: 0, padding: 20, display: "grid", gap: 18 }}>
+      <div>
+        <p style={caption}>The page</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {records.map((r, i) => (
+            <button key={r.name} type="button" aria-pressed={i === pick} onClick={() => setPick(i)} style={chip(i === pick)}>
+              {r.name}, {fmt(r.chars)} characters
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <label style={{ display: "grid", gap: 6, fontSize: 14 }}>
+          <span style={mono}>max_characters</span>
+          <input type="text" inputMode="numeric" value={raw} onChange={(e) => setRaw(e.target.value)} style={{ ...mono, fontSize: 14, padding: "6px 8px", border: line, borderRadius: 0, background: "transparent", color: "inherit", width: 180, maxWidth: "100%" }} />
+        </label>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+          {presets.map((p) => (
+            <button key={p} type="button" aria-pressed={text === String(p)} onClick={() => setRaw(String(p))} style={{ ...chip(text === String(p)), ...mono }}>
+              {fmt(p)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
+        <input type="checkbox" checked={found} onChange={(e) => setFound(e.target.checked)} />
+        A highlight string was found in the page
+      </label>
+      <div style={{ borderTop: line, paddingTop: 14 }}>
+        {result.note ? (
+          <p style={{ margin: 0, fontSize: 14 }}>{result.note}</p>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "max-content minmax(0, 1fr)", gap: "8px 16px", fontSize: 14, alignItems: "baseline" }}>
+            <span style={{ ...mono, opacity: 0.7 }}>outcome.reason</span>
+            <span style={{ ...mono, fontWeight: 500 }}>{result.reason}</span>
+            <span style={{ ...mono, opacity: 0.7 }}>truncated</span>
+            <span className={result.truncated ? "" : "text-[#005d5d] dark:text-[#3ddbd9]"} style={{ ...mono, fontWeight: 500 }}>{String(result.truncated)}</span>
+            <span style={{ opacity: 0.7 }}>What comes</span>
+            <span>{result.comes}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};

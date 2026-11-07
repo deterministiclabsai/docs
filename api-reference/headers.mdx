@@ -1,0 +1,111 @@
+---
+title: "Headers the GetClean API reads and sends"
+sidebarTitle: "Headers"
+description: "Every header GetClean reads and sends, from Authorization and Idempotency-Key to Request-Id, RateLimit, Location and Retry-After, with when each appears."
+keywords: ["headers", "Request-Id", "RateLimit", "Idempotency-Key", "Retry-After", "traceparent", "WWW-Authenticate"]
+---
+
+Every GetClean answer carries `Request-Id`, and every answer but a `401` carries the key's rate in `RateLimit` and `RateLimit-Policy`. This page lists each header you send and each header you get back, when it appears, its form, and the standard it follows.
+
+## An answer and its headers
+
+This upload is parsed as a job, so the answer is `202 Accepted`, with the job's address in `Location` and the wait in `Retry-After`.
+
+```bash
+curl https://api.getclean.ai/v1/contents:upload \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY" \
+  -H "Idempotency-Key: upload-records-2026-11-04" \
+  -F "document=@records.pdf;type=application/octet-stream" \
+  -F 'max_cost={"amount": "1.0000", "currency": "USD"};type=application/json'
+```
+
+```http
+HTTP/1.1 202 Accepted
+Location: https://api.getclean.ai/v1/jobs/job_8Rt2mqXKclxu58MCwLkSCV
+Retry-After: 20
+Request-Id: req_01LyBFDAgNmn3TTbQ2Fe4r
+Content-Type: application/json
+```
+
+The body, the job with its counts and its cost so far, is on [Upload contents](/api-reference/upload-contents).
+
+## Headers you send
+
+| Header | When | Form |
+|---|---|---|
+| `Authorization` | Every call | `Bearer <key>`, an API key or an access token. A credential in the query string is ignored. |
+| `Content-Type` | Every call with a body | `application/json`, or `multipart/form-data` on the upload. Another media type gets `415`. |
+| `Content-Encoding` | Optional, on a JSON body | `gzip`. The upload takes no content coding. |
+| `Idempotency-Key` | Optional on `fetch_contents`, `highlight_contents`, `fill_schema`, `summarize_contents` and `search`. Required on `upload_contents`, `fetch_contents_batch` and `search_batch`. | 1 to 255 visible ASCII characters, used as sent. See [Retry a call without paying twice](/api-reference/idempotency-and-retries). |
+| `traceparent` | Optional, on every call | W3C Trace Context. Logged with the call, never forwarded to a site or a source. A malformed value is ignored, never refused. |
+| `Content-Digest` | Optional, on the upload only | RFC 9530 over the whole multipart body. Every `sha-256` and `sha-512` member is verified. |
+| `Expect` | Optional, on the upload | `100-continue`, honored as described below. |
+
+A missing required `Idempotency-Key` gets `400 invalid-request` naming the header.
+
+On the upload, `Expect: 100-continue` lets a refusal arrive before you send the document. A declared `Content-Length` over 101 MiB is refused before `100 Continue`. So is every refusal the method, the path and the headers decide: `401`, `403 insufficient-scope` for `contents:fetch`, the missing idempotency key's `400`, `415`, and `409 idempotency-key-in-flight`. A scope that a form field decides, `contents:model`, is checked once the form is read and before any work.
+
+## Headers you get back
+
+| Header | On | Form |
+|---|---|---|
+| `Request-Id` | Every answer | This call's `req_` id, repeated in the body as `request_id`. A replay carries this call's id, never the first call's. |
+| `RateLimit` | Every answer but a `401` | The quota left, as `draft-ietf-httpapi-ratelimit-headers-11` writes it. |
+| `RateLimit-Policy` | Every answer but a `401` | The key's policy, in the same draft's form. |
+| `Location` | `201` of `fetch_contents`, `upload_contents` and `search`. `202` of `upload_contents`. | The absolute URL of the record on a `201`, of the job on a `202`. |
+| `Retry-After` | Always on `202`, `429` and `503`. On a `200` of `get_job` or `cancel_job` while the job is not finished. On a `409` only for `idempotency-key-in-flight`. | Whole seconds, 1 or more, repeated in the body as `retry_after_seconds`. |
+| `WWW-Authenticate` | Every `401`. A `403` only for `insufficient-scope`. | The bearer challenge, shown below. |
+| `Sunset` | Every answer of a resource whose own retirement is announced | The instant as an IMF-fixdate, RFC 8594. |
+| `Deprecation` | Every answer of a resource or an element whose retirement is announced | RFC 9745: the announcement's instant as a Structured Field Date, `@` and the seconds. |
+| `Accept` | A `415` | The media types the operation takes. |
+| `Accept-Encoding` | A `415` that a content coding caused | `gzip`, and `identity` on the upload, which takes none. |
+| `Link` | A `451` | `rel="blocked-by"`, its target GetClean's own notice page, as RFC 7725 section 4 asks. |
+| `Allow` | A `405` | The methods the resource offers. |
+| `Cache-Control` | `get_limits` | `no-store`, since the answer is the key's own. |
+| `Content-Type` | Every answer with a body | `application/json`, or `application/problem+json` on a problem. |
+
+## The rate in the headers
+
+`RateLimit` carries two items, the quota left of each policy. The first also carries the seconds to the window's reset:
+
+```text
+"requests";r=<left>;t=<seconds>
+"concurrency";r=<left>
+```
+
+`RateLimit-Policy` carries the key's policy, two items:
+
+```text
+"requests";q=<requests_per_minute>;w=60
+"concurrency";q=<concurrency>;qu="concurrent-requests"
+```
+
+The same figures travel in the body of `get_limits` as `rates`. A `429` names the policy it exceeded in `detail`: `rate-limit-exceeded` for requests, `concurrency-limit-exceeded` for concurrency.
+
+## The challenge on a 401 and a 403
+
+With no credential sent, every `401` carries this challenge:
+
+```text
+WWW-Authenticate: Bearer realm="getclean", resource_metadata="https://api.getclean.ai/.well-known/oauth-protected-resource"
+```
+
+With a credential sent and rejected, the challenge is the same with `error="invalid_token"` added, as RFC 6750 section 3 and RFC 9728 section 5.1 describe.
+
+A `403 insufficient-scope` carries this challenge, with a `scope` attribute added that names every scope the call needs, the same scopes the body lists in `scopes_required`:
+
+```text
+WWW-Authenticate: Bearer realm="getclean", error="insufficient_scope", resource_metadata="https://api.getclean.ai/.well-known/oauth-protected-resource"
+```
+
+No other `403` carries the header.
+
+The `resource_metadata` address is the API's protected resource metadata, RFC 9728, served to anyone with `Cache-Control: max-age=3600`. It names the resource `https://api.getclean.ai`, its one issuer, the nine scopes and `bearer_methods_supported` `["header"]`. An agent that arrives with nothing follows it to the issuer and its device sign-in. See [Authentication](/authentication).
+
+## Read the headers without the body
+
+`HEAD` on any `GET` of either family is answered at once, with the headers the `GET` would send and no body. A `HEAD` on `get_job` does not wait. The contract declares no `HEAD` operations, so they have no pages of their own.
+
+## Sunset, Deprecation and engine versions
+
+`Sunset` binds to the resource that sends it, so it announces that resource's end. A retiring engine version is never announced by `Sunset`, since a client that knows only RFC 8594 would read the header as the end of the resource. It is announced by the notice `version_retiring` and by `retires_at` on the version in `get_limits`. [Versions](/api-reference/versions) covers versions.

@@ -1,0 +1,160 @@
+---
+title: "GetClean API reference"
+sidebarTitle: "Introduction"
+description: "The GetClean API at api.getclean.ai: 22 operations under /v1, a bearer key on every call, and answers that say what happened before anything else."
+keywords: ["GetClean API", "API reference", "api.getclean.ai", "OpenAPI 3.1", "HTTP API"]
+---
+
+The GetClean API is one HTTP API at `https://api.getclean.ai`, described by one OpenAPI 3.1 contract with 22 operations. Every call carries `Authorization: Bearer <key>`, and every answer says first what happened, as an outcome, never as an HTTP status.
+
+## A call and its answer
+
+This call fetches a shop page that answers with a bot challenge instead of the page.
+
+```bash
+curl https://api.getclean.ai/v1/contents \
+  -H "Authorization: Bearer $GETCLEAN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://shop.example/offer"}'
+```
+
+The answer is `201 Created`, as it is for every outcome of a fetch. The record below leaves out its `source` and `execution` members. [Fetch contents](/api-reference/fetch-contents) shows it whole.
+
+```http
+HTTP/1.1 201 Created
+Location: https://api.getclean.ai/v1/contents/cnt_7Qp2cdxxK32qkfIDrqRUE2
+Request-Id: req_01KXuaBXEPybVuXmnCI9Bl
+Content-Type: application/json
+
+{
+  "id": "cnt_7Qp2cdxxK32qkfIDrqRUE2",
+  "outcome": {
+    "kind": "failed",
+    "reason": "challenge_served",
+    "message": "A bot challenge stood where the page should be; later may work on sites that do not challenge every new visitor, or a person opens the URL and uploads the saved page with captured_url."
+  },
+  "notices": [],
+  "fetched_at": "2026-11-04T08:41:03Z",
+  "truncated": false,
+  "cost": {
+    "ceiling": {"amount": "0.0500", "currency": "USD"},
+    "actual": {"amount": "0.0000", "currency": "USD"},
+    "units": {},
+    "replayed": false
+  },
+  "retention": "hold",
+  "run_id": "run_default",
+  "expires_at": "2026-11-06T08:41:03Z",
+  "request_id": "req_01KXuaBXEPybVuXmnCI9Bl"
+}
+```
+
+## What an answer says first
+
+`outcome` comes first in every answer. Its `reason` says why, and its `message` carries the particulars, such as what may work next. Its `kind` is one of five:
+
+| `kind` | What it means |
+|---|---|
+| `delivered` | Everything asked came, or the map came. |
+| `partial` | Work stopped in the middle, with its results kept. |
+| `failed` | The source's answer was not a page. |
+| `refused` | GetClean did not try, by a rule. |
+| `needs_person` | A person must act. |
+
+A page that could not be read is a record like any other. Here `kind` is `failed` and `reason` is `challenge_served`. The failure of a site or a source is never an API problem.
+
+A problem is an answer that is not a result, such as `401 unauthorized` for a missing key or `422 invalid-field` for a value outside its set. [Problems](/api-reference/problems) lists every type with the fix.
+
+`notices` follow the outcome. Each notice is a fact to read before the result, never an error. This fetch made none, so the list is empty.
+
+The bill follows the outcome. Here `cost.actual` is `0.0000` and `cost.units` is empty.
+
+## The base URL and the key
+
+Every path starts with `/v1` under `https://api.getclean.ai`. Send every call over HTTPS: a plain HTTP request gets `400 invalid-request`, with `detail` naming the HTTPS URL, never a redirect.
+
+The bearer value is an API key from `https://app.getclean.ai`, or an access token issued by `https://auth.getclean.ai/realms/getclean`. A credential in the query string is ignored. Each operation names the scope it needs. A key without it gets `403 insufficient-scope`, with every scope the call needs in `scopes_required`. [Authentication](/authentication) says where a key comes from.
+
+## The operations
+
+The operations form two families, contents and search, and one call that serves both, `get_limits`. Contents takes one source, a web page or a document, fetched or uploaded, and answers every question about it afterwards from one held record. Search is the step before the fetch: one question run on up to ten datasources, the leads returned with the facts of each before any is read.
+
+Each description below is the first sentence of the operation's own page.
+
+### Contents
+
+| Operation | Call | What it does |
+|---|---|---|
+| [`fetch_contents`](/api-reference/fetch-contents) | `POST /v1/contents` | Fetch one page or one document at a URL, as a person sees it, and hold the record. |
+| [`upload_contents`](/api-reference/upload-contents) | `POST /v1/contents:upload` | Parse a document the caller holds, or one at a URL that outlives a fetch, with recognition where pages have no text layer, as a job when it must. |
+| [`fetch_contents_batch`](/api-reference/fetch-contents-batch) | `POST /v1/contents:batch` | 1 to 20 fetches of `fetch_contents` in one call, one record each, held as single fetches are; not a resource: no batch id, no batch expiry, no `Location`. |
+| [`get_contents`](/api-reference/get-contents) | `GET /v1/contents/{contents_id}` | Read the held record again, in any content format, at any size, under either scope, from the one capture, with the fetch's model work. |
+| [`get_section`](/api-reference/get-section) | `GET /v1/contents/{contents_id}/sections/{section_id}` | One section of a held record: its text when it fits, its own text and its child rows when it does not, a page of its text when a cut is needed. |
+| [`list_blocks`](/api-reference/list-blocks) | `GET /v1/contents/{contents_id}/blocks` | The blocks of a held record, by kind, section, page or id, in document order, paged. |
+| [`list_links`](/api-reference/list-links) | `GET /v1/contents/{contents_id}/links` | The links of a held record, with kind and place, paged. |
+| [`highlight_contents`](/api-reference/highlight-contents) | `POST /v1/contents/{contents_id}:highlight` | Find and mark passages or questions in a held record, exactly as `fetch_contents`'s `highlights` does, without fetching again. |
+| [`fill_schema`](/api-reference/fill-schema) | `POST /v1/contents/{contents_id}:fill` | Fill the caller's JSON Schema from a held record. |
+| [`summarize_contents`](/api-reference/summarize-contents) | `POST /v1/contents/{contents_id}:summarize` | A model writes a summary of the held record, as `fetch_contents`'s `summary` does, run again on the held copy; `highlight_contents` finds a passage, `fill_schema` fills fields. |
+| [`compare_contents`](/api-reference/compare-contents) | `POST /v1/contents/{contents_id}:compare` | The changes between a held record and a baseline, block by block and cell by cell, without a model. |
+| [`list_contents`](/api-reference/list-contents) | `GET /v1/contents` | List the records the account holds, newest first, each compact: its id, its outcome, its source and dates, and nothing of its text. |
+| [`delete_contents`](/api-reference/delete-contents) | `DELETE /v1/contents/{contents_id}` | Erase a record before its hold ends: the record, its screenshot, its raw HTML, its document images, its recognized page images and its stored replays. |
+
+### Jobs
+
+| Operation | Call | What it does |
+|---|---|---|
+| [`get_job`](/api-reference/get-job) | `GET /v1/jobs/{job_id}` | Read a job, or wait for it: the answer comes at the final state or when `wait_seconds` ends, with the current state; `200` also when the job failed, the failure inside. |
+| [`cancel_job`](/api-reference/cancel-job) | `POST /v1/jobs/{job_id}:cancel` | Ask the job to stop; best effort, the work may finish first. |
+| [`list_jobs`](/api-reference/list-jobs) | `GET /v1/jobs` | The account's own jobs, newest first; `state` and `kind` narrow, the intersection. |
+
+### Search
+
+| Operation | Call | What it does |
+|---|---|---|
+| [`search`](/api-reference/search) | `POST /v1/search` | Run the search and create its record: one question in up to twenty wordings, run live on up to ten datasources, top-k taken from each, merged and deduplicated into one pool, reranked once, the top leads returned with their facts and a receipt of what ran where. |
+| [`get_search`](/api-reference/get-search) | `GET /v1/search/{search_id}` | Read a held search again, the first page as answered and the pool behind it, free: never a new search, a charge or a changed record. |
+| [`search_batch`](/api-reference/search-batch) | `POST /v1/search:batch` | 1 to 20 searches of `search` in one call, one record each. |
+| [`list_datasources`](/api-reference/list-datasources) | `GET /v1/datasources` | The catalog of the places the layer can search, free and cacheable for an hour. |
+| [`get_datasource`](/api-reference/get-datasource) | `GET /v1/datasources/{datasource_id}` | One entry of the catalog whole, free and cacheable for an hour. |
+
+### Limits
+
+| Operation | Call | What it does |
+|---|---|---|
+| [`get_limits`](/api-reference/get-limits) | `GET /v1/limits` | Read the key's limits and the account's money in one answer, before a batch or any call that must fit a budget. |
+
+## What every operation shares
+
+| Topic | The rule |
+|---|---|
+| Request id | Every answer carries `Request-Id`, a `req_` id, repeated in the body as `request_id`. A replay carries its own id, never the first call's. |
+| Bodies | A JSON body is at most 256 KB, a KB being 1,000 bytes, and may be sent gzip-coded. The upload is `multipart/form-data`, at most 101 MiB, its document part at most 100 MiB. |
+| Money | Every sum is one object, such as `{"amount": "0.0500", "currency": "USD"}`: a decimal string with at most four fraction digits, and an ISO 4217 currency. |
+| Time | Date-times such as `expired_at`, `resets_at` and `released_at` are RFC 3339 in UTC: `2026-11-06T12:00:00Z`. |
+| Rate | One rate covers every operation. `RateLimit` and `RateLimit-Policy` report it on every answer but a `401`. |
+| Retries | Eight operations take an `Idempotency-Key`, so a retried call is never billed twice. |
+| Tracing | Every operation takes an optional W3C `traceparent`, logged with the call and never forwarded to a site or a source. |
+| `HEAD` | `HEAD` on any `GET` returns the headers the `GET` would send, with no body. |
+| Problems | An answer that is not a result is `application/problem+json`, RFC 9457, one shape for every status. |
+
+## Where the rules for every call are
+
+Every operation's page is generated from the contract, so its parameters, examples and rules are the contract's own words. The contract itself is [`openapi.yaml`](/openapi.yaml).
+
+<Columns cols={2}>
+  <Card title="Problems" href="/api-reference/problems">
+    Every problem type, its status, who acts and the fix.
+  </Card>
+  <Card title="Headers" href="/api-reference/headers">
+    Every header you send and get back, and when it appears.
+  </Card>
+  <Card title="Retry a call without paying twice" href="/api-reference/idempotency-and-retries">
+    Idempotency keys, replays and the problems worth retrying.
+  </Card>
+  <Card title="Limits and prices" href="/api-reference/limits-and-prices">
+    Your balance, unit prices, caps, budgets, rate and bounds.
+  </Card>
+  <Card title="Versions and changes" href="/api-reference/versions">
+    The versions served, pinning one, and how a retirement is announced.
+  </Card>
+</Columns>
